@@ -5,5 +5,8 @@ debug/
 captures/
 data/settings.json
 data/run_history.json
+data/account_scan.json
+data/account_scan_history.json
+data/account_scan_checkpoint.json
 build/
 dist/

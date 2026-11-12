@@ -20,6 +20,14 @@ ASPECT_TOLERANCE = 0.01
 
 # Fixed tap targets (elements without readable text)
 AVENTURA_TAB = (720, 2410)   # footer, center tab
+EQUIP_TAB = (430, 2410)      # helmet footer icon, from the Adventure lobby
+PETS_TAB = (1295, 2410)      # egg footer icon, from the Adventure lobby
+ACCOUNT_EQUIP_SLOTS = ((300, 280), (1140, 280), (300, 550), (1140, 550), (300, 815), (1140, 815))
+ACCOUNT_STATS_BUTTON = (900, 903)  # list icon beside the equipped hero's power
+ACCOUNT_STATS_SCROLL = ((1010, 1770), (1010, 920))  # only inside a recognized Stats Details panel
+ACCOUNT_COMPANIONS = ((870, 1025), (1030, 1025), (1190, 1025))  # portraits beneath Companions
+ACCOUNT_PET_COLUMNS = (350, 595, 840, 1085)
+ACCOUNT_PET_ROWS = (1150, 1410, 1675, 1935)
 ELITE_TOGGLE = (933, 2120)   # skull button right of INICIO/LISTO
 LIST_BACK = (120, 2448)      # back arrow at the bottom-left of the star challenge list
 
