@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roguebot_phone/i18n.dart';
-import 'package:roguebot_phone/main.dart';
+import 'package:roguebot_phone/options.dart';
 
 void main() {
   test('every UI text exists in both languages', () {
@@ -45,5 +45,19 @@ void main() {
       ..nature = 'magic';
     final copy = Options()..restore(o.toJson());
     expect(copy.toJson(), o.toJson());
+  });
+
+  test('malformed options and mixed type orders keep defaults', () {
+    for (final raw in ['{', 'null', '[]', '42', '{"damage_order":["fire",3]}', '{"damage_order":"fire"}']) {
+      final options = Options()..restoreJson(raw);
+      expect(options.toJson(), Options().toJson());
+    }
+  });
+
+  test('restored damage order is owned by the options', () {
+    final saved = [...damageTypes.reversed];
+    final options = Options()..restore({'damage_order': saved});
+    saved.clear();
+    expect(options.order, damageTypes.reversed.toList());
   });
 }

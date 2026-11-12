@@ -6,11 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'i18n.dart';
+import 'options.dart';
 
 /// The phone version of the desktop bot's window (roguebot/ui.py): options, Start/Stop, status and log.
 /// The bot itself runs in Kotlin (android/bot, android/app): see Engine.kt.
 const version = '0.4.0';
-const damageTypes = ['ice', 'lightning', 'fire', 'shuriken', 'venom', 'bleed'];
 const engine = MethodChannel('roguebot/engine');
 const events = EventChannel('roguebot/events');
 
@@ -26,35 +26,6 @@ class BotApp extends StatelessWidget {
         darkTheme: ThemeData(colorSchemeSeed: const Color(0xFF7B3FA0), brightness: Brightness.dark, useMaterial3: true),
         home: const BotPage(),
       );
-}
-
-/// Every option the user sets, saved between sessions (like data/settings.json on the desktop).
-class Options {
-  String lang = 'es', mode = 'normal', source = 'latest', level = '1', nature = 'physical', supportEvery = '3';
-  bool full = false, loop = false, ads = false, support = false;
-  List<String> order = [...damageTypes];
-
-  Map<String, Object> toJson() => {
-        'lang': lang, 'mode': mode, 'source': source, 'level': level, 'nature': nature, 'support_every': supportEvery,
-        'full': full, 'loop': loop, 'ads': ads, 'support': support, 'damage_order': order,
-      };
-
-  /// Last session's choices; anything missing or invalid keeps its default.
-  void restore(Map<String, dynamic> s) {
-    T? pick<T>(String key, bool Function(T) ok) => s[key] is T && ok(s[key] as T) ? s[key] as T : null;
-    lang = pick<String>('lang', uiLanguages.containsKey) ?? lang;
-    mode = pick<String>('mode', ['normal', 'elite'].contains) ?? mode;
-    source = pick<String>('source', ['latest', 'beaten', 'pending', 'stars'].contains) ?? source;
-    nature = pick<String>('nature', ['physical', 'magic'].contains) ?? nature;
-    level = pick<String>('level', (v) => int.tryParse(v) != null) ?? level;
-    supportEvery = pick<String>('support_every', (v) => int.tryParse(v) != null) ?? supportEvery;
-    full = pick<bool>('full', (_) => true) ?? full;
-    loop = pick<bool>('loop', (_) => true) ?? loop;
-    ads = pick<bool>('ads', (_) => true) ?? ads;
-    support = pick<bool>('support', (_) => true) ?? support;
-    final saved = (s['damage_order'] as List?)?.cast<String>();
-    if (saved != null && ([...saved]..sort()).join() == ([...damageTypes]..sort()).join()) order = saved;
-  }
 }
 
 class BotPage extends StatefulWidget {
@@ -89,6 +60,7 @@ class _BotPageState extends State<BotPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     sub?.cancel();
+    logScroll.dispose();
     super.dispose();
   }
 
@@ -100,7 +72,7 @@ class _BotPageState extends State<BotPage> with WidgetsBindingObserver {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('options');
-    if (saved != null) options.restore(jsonDecode(saved) as Map<String, dynamic>);
+    if (saved != null) options.restoreJson(saved);
     changelog = await rootBundle.loadString('CHANGELOG.md');
     await _refresh();
   }
@@ -112,7 +84,9 @@ class _BotPageState extends State<BotPage> with WidgetsBindingObserver {
 
   /// The engine's state (the bot may have been running while this screen was closed).
   Future<void> _refresh() async {
+    if (!mounted) return;
     final s = Map<String, dynamic>.from(await engine.invokeMethod('state') as Map);
+    if (!mounted) return;
     setState(() {
       serviceOn = s['serviceEnabled'] as bool;
       gameInstalled = s['gameInstalled'] as bool;
@@ -125,12 +99,13 @@ class _BotPageState extends State<BotPage> with WidgetsBindingObserver {
   }
 
   void _onEvent(Map<String, dynamic> e) {
+    if (!mounted) return;
     setState(() {
       if (e['type'] == 'log') {
         log.add(e['line'] as String);
         if (log.length > 500) log.removeAt(0);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (logScroll.hasClients) logScroll.jumpTo(logScroll.position.maxScrollExtent);
+          if (mounted && logScroll.hasClients) logScroll.jumpTo(logScroll.position.maxScrollExtent);
         });
         return;
       }
@@ -165,6 +140,7 @@ class _BotPageState extends State<BotPage> with WidgetsBindingObserver {
 
   Future<void> _start() async {
     await _save();
+    if (!mounted) return;
     final every = int.tryParse(options.supportEvery.trim());
     final error = await engine.invokeMethod<String>('start', {
       'mode': options.mode,
@@ -177,6 +153,7 @@ class _BotPageState extends State<BotPage> with WidgetsBindingObserver {
       'order': options.order,
       'supportEvery': options.support && every != null && every > 0 ? every : null,
     });
+    if (!mounted) return;
     if (error != null) {
       setState(() => _status(error, Colors.red));
       if (error == 'err_service') _refresh();
