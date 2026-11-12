@@ -215,6 +215,8 @@ class Player:
                     self._auto_missing = True
 
             if state.kind in (LevelScreen.VICTORY, LevelScreen.DEFEAT):
+                from roguebot.metrics import result_values
+                self.result_values = result_values(texts, img, ocr=self.ocr)
                 log.debug("Level result detected: %s", state.kind.value)
                 self.device.tap(*state.tap)
                 return state.kind

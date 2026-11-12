@@ -5,11 +5,13 @@ from dataclasses import dataclass
 from roguebot.build import Build
 from roguebot import config
 from roguebot.screens import Mode
+from roguebot.farming import OBJECTIVES
 
 LATEST = "latest"
 STARS = "stars"
 BEATEN = "beaten"
 PENDING = "pending"  # beaten levels that still miss stars, then the last beaten one
+FARM = "farm"
 
 
 def positive_integer(value: str | int) -> int | None:
@@ -39,11 +41,17 @@ class RunRequest:
     adb_path: str = ""     # blank uses the selected provider's bundled ADB
     device_serial: str = ""  # blank uses the provider's default/discovered device
     elite_energy: int | None = None  # None: highest affordable cost; otherwise exactly 5/10/15
+    farm: bool = False
+    farm_objective: str = "reliable"
 
     def __post_init__(self) -> None:
         if self.elite_energy is not None and (not isinstance(self.elite_energy, int) or isinstance(self.elite_energy, bool)
                                                or self.elite_energy not in config.ELITE_COSTS):
             raise ValueError("bad_elite_energy")
+        if self.farm_objective not in OBJECTIVES:
+            raise ValueError("bad_farm_objective")
+        if self.farm and (self.level is not None or self.last_beaten or self.pending_stars):
+            raise ValueError("bad_farm_objective")
 
     @property
     def minimum_energy(self) -> int:
@@ -67,7 +75,10 @@ def build_request(mode: str, source: str, level: str, full: bool = False, build:
     else:
         raise ValueError("bad_elite_energy")
     common = dict(repeat=True, full=full, build=build, mumu_folder=mumu_folder, loop=loop, ads=ads,
-                  provider=provider, adb_path=adb_path.strip(), device_serial=device_serial.strip(), elite_energy=cost)
+                  provider=provider, adb_path=adb_path.strip(), device_serial=device_serial.strip(), elite_energy=cost,
+                  farm_objective=farm_objective)
+    if source == FARM:
+        return RunRequest(Mode(mode), None, farm=True, **common)
     if source in (LATEST, BEATEN, PENDING):
         return RunRequest(Mode(mode), None, last_beaten=source in (BEATEN, PENDING),
                           pending_stars=source == PENDING, **common)

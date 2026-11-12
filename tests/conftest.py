@@ -73,3 +73,4 @@ def ocr(request) -> Ocr:
 def isolated_event_captures(monkeypatch, tmp_path):
     """Keep replay evidence isolated from user data."""
     monkeypatch.setattr("roguebot.play.EVENT_DEBUG_DIR", tmp_path / "events")
+    monkeypatch.setattr("roguebot.metrics.RUNS_PATH", tmp_path / "history.json")

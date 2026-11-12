@@ -4,5 +4,6 @@ __pycache__/
 debug/
 captures/
 data/settings.json
+data/run_history.json
 build/
 dist/
