@@ -15,6 +15,31 @@ def test_runner_does_not_connect_until_start(monkeypatch):
     main.make_runner(dry_run=True)  # building the runner must not touch the emulator
 
 
+def test_dry_run_does_not_play_an_existing_adventure(monkeypatch):
+    nav = FakeNav(energy=20)
+    nav.in_level = True
+    monkeypatch.setattr(main, "Device", lambda *args, **kwargs: object())
+    monkeypatch.setattr(main, "Ocr", object)
+    monkeypatch.setattr(main, "Catalog", object)
+    monkeypatch.setattr(main, "Navigator", lambda *args, **kwargs: nav)
+    monkeypatch.setattr(main, "Player", lambda *args, **kwargs: pytest.fail("Dry run created a player"))
+
+    with pytest.raises(main.NavigationError, match="already in progress"):
+        main.make_runner(dry_run=True)(RunRequest(Mode.NORMAL, None))
+    assert not nav.started
+
+
+@pytest.mark.parametrize(("mode", "source", "options", "error"), [
+    ("normal", "stars", {"level": "²"}, "bad_level"),
+    ("party_expedition", "latest", {"party_runs": "²"}, "bad_party_runs"),
+])
+def test_form_rejects_non_decimal_digits_with_a_translation_key(mode, source, options, error):
+    from roguebot.request import build_request
+
+    with pytest.raises(ValueError, match=f"^{error}$"):
+        build_request(mode, source, **{"level": "1", **options})
+
+
 class FakeEmulator:
     """Emulator already started, game in front: (serial, adb, game_was_launched)."""
     launched = False
@@ -30,20 +55,24 @@ class FakeEmulator:
     def shutdown(self):
         FakeEmulator.shutdowns += 1
 
+    def recover(self, *, restart_game=False):
+        self.shutdown()
+
 
 @pytest.fixture(autouse=True)
 def fake_emulator(monkeypatch):
     FakeEmulator.launched, FakeEmulator.shutdowns = False, 0
-    monkeypatch.setattr(main, "Emulator", FakeEmulator)
+    monkeypatch.setattr(main, "create_provider", lambda request, stop: FakeEmulator(request.mumu_folder, stop))
     FakeRoutine.patrols = 0
     monkeypatch.setattr(main, "Routine", FakeRoutine)
+    monkeypatch.setattr(main, "collect_events", lambda *args: 0)
 
 
 def test_emulator_problems_are_reported(monkeypatch):
     class Broken(FakeEmulator):
         def start(self):
             raise EmulatorError("err_game_missing")
-    monkeypatch.setattr(main, "Emulator", Broken)
+    monkeypatch.setattr(main, "create_provider", lambda request, stop: Broken(request.mumu_folder, stop))
     with pytest.raises(EmulatorError) as e:
         main.make_runner(dry_run=True)(RunRequest(Mode.NORMAL, None, mumu_folder="C:/MuMu"))
     assert e.value.key == "err_game_missing" and Broken.folder == "C:/MuMu"
@@ -78,6 +107,8 @@ class FakeLobby:
 
 class FakeNav:
     """Energy drops 5 per run; claiming free energy adds `claimable` once."""
+    level_modifiers = None
+
     def __init__(self, energy, claimable=0, latest=13):
         self.energy, self.claimable, self.latest = energy, claimable, latest
         self.started = []
@@ -115,7 +146,7 @@ def run_with(monkeypatch, nav, results, request):
             pass
 
     class FakePlayer:
-        def __init__(self, *a):
+        def __init__(self, *a, **kwargs):
             pass
 
         def play_level(self):
@@ -136,6 +167,68 @@ def test_single_run(monkeypatch):
     report = run_with(monkeypatch, nav, [V], RunRequest(Mode.NORMAL, 4))
     assert report.results == [V] and not report.repeat
     assert nav.started == ["detect", ("stars", 4)]  # language first
+
+
+def test_farm_steps_down_after_two_elite_defeats(monkeypatch):
+    class FarmNav(FakeNav):
+        def start_farm(self, mode, choose):
+            level = choose(self.latest)
+            self.start_star_challenge(mode, level)
+            return level
+
+    nav = FarmNav(energy=15, latest=28)
+    report = run_with(monkeypatch, nav, [D, D, V], RunRequest(Mode.ELITE, None, repeat=True, farm=True))
+    assert report.results == [D, D, V]
+    assert nav.started == ["detect", ("stars", 27), ("stars", 27), ("stars", 26)]
+
+
+def test_elite_preview_reaches_the_player_and_is_not_reused_by_later_routine_modes(monkeypatch):
+    from roguebot.modifiers import Modifier
+    nav = FakeNav(energy=20)
+    nav.level_modifiers = (Modifier("No Time To Study", "Training at the Campfire is disabled."),)
+    seen = []
+    class Player:
+        def __init__(self, *args, build_state, inspect_modifiers):
+            seen.append((build_state.rules.effects, inspect_modifiers))
+
+        def play_level(self):
+            return V
+    monkeypatch.setattr(main, "Device", lambda *a, **k: object())
+    monkeypatch.setattr(main, "Ocr", lambda: object())
+    monkeypatch.setattr(main, "Navigator", lambda *a, **k: nav)
+    monkeypatch.setattr(main, "Player", Player)
+    report = main.make_runner(False)(RunRequest(Mode.ELITE, 4))
+    assert report.results == [V]
+    assert seen == [(frozenset({"training_disabled"}), True)]
+    assert nav.level_modifiers is None
+
+
+def test_party_mode_uses_its_runner_without_reading_or_spending_normal_energy(monkeypatch):
+    seen = []
+    expected = main.Report([V], repeat=True, party_reason="party_complete")
+    class Party:
+        def __init__(self, device, ocr, nav, build, catalog, role, progress):
+            seen.append(role)
+        def run(self, limit, *, dry_run):
+            seen.append((limit, dry_run))
+            return expected
+    monkeypatch.setattr(main, "PartyExpedition", Party)
+    nav = FakeNav(energy=0)
+    report = run_with(monkeypatch, nav, [], RunRequest(Mode.PARTY_EXPEDITION, None, full=True, loop=True))
+    assert report is expected and seen == ["striker", (20, False)]
+    assert not nav.started and not nav.claims and not FakeRoutine.patrols
+
+
+def test_party_errors_do_not_restart_the_game_or_start_another_online_match(monkeypatch):
+    class Party:
+        def __init__(self, *args):
+            pass
+        def run(self, *args, **kwargs):
+            raise main.EmulatorError("party_unknown")
+    monkeypatch.setattr(main, "PartyExpedition", Party)
+    with pytest.raises(main.EmulatorError, match="party_unknown"):
+        run_with(monkeypatch, FakeNav(0), [], RunRequest(Mode.PARTY_EXPEDITION, None))
+    assert FakeEmulator.shutdowns == 0
 
 
 def test_repeat_until_out_of_energy_claims_free_energy_first(monkeypatch):
@@ -168,13 +261,16 @@ class FakeRoutine:
         self.nav = nav
         self.build = build
 
-    def run_parts(self, progress=None):
+    def run_parts(self, progress=None, *, only=None):
         FakeRoutine.calls += 1
         FakeRoutine.had_player = self.play_level is not None  # Dungeon Dive plays levels with the Player
         FakeRoutine.had_build = self.build is not None  # Dojo / raid skill picks follow the build
-        progress = {} if progress is None else progress
-        progress.setdefault("parts", []).extend([("arena", "done"), ("raid", "skipped")])
-        return progress["parts"]
+        progress = main.RoutineProgress() if progress is None else progress
+        if only is None:
+            progress.parts.extend([("arena", "done"), ("raid", "skipped")])
+        else:
+            progress.parts.extend((part, "done") for part in only)
+        return progress.parts
 
     def patrol(self):
         FakeRoutine.patrols += 1
@@ -195,6 +291,17 @@ def test_full_routine_without_energy_is_not_an_error(monkeypatch):
     monkeypatch.setattr(main, "Routine", FakeRoutine)
     report = run_with(monkeypatch, FakeNav(energy=0), [], RunRequest(Mode.NORMAL, 4, repeat=True, full=True))
     assert report.results == [] and report.parts
+
+
+@pytest.mark.parametrize("selected", [("vip", "tower"), ()])
+def test_explicit_activity_selection_controls_the_routine(monkeypatch, selected):
+    FakeRoutine.calls = 0
+    monkeypatch.setattr(main, "Routine", FakeRoutine)
+    request = RunRequest(Mode.NORMAL, 4, full=True, routine_parts=selected, claim_events=False)
+    report = run_with(monkeypatch, FakeNav(energy=10), [V], request)
+    assert FakeRoutine.calls == bool(selected)
+    assert report.parts == [(part, "done") for part in selected]
+    assert report.results == [V]
 
 
 def test_routine_not_run_without_full(monkeypatch):
@@ -230,7 +337,7 @@ def run_loop(monkeypatch, nav, results, on_wait, full=True):
             on_wait()
 
     class FakePlayer:
-        def __init__(self, *a):
+        def __init__(self, *a, **kwargs):
             pass
 
         def play_level(self):
@@ -427,7 +534,7 @@ def test_permanent_problems_are_not_retried(monkeypatch):
     class NeedsUpdate(FakeEmulator):
         def start(self):
             raise EmulatorError("err_game_update")
-    monkeypatch.setattr(main, "Emulator", NeedsUpdate)
+    monkeypatch.setattr(main, "create_provider", lambda request, stop: NeedsUpdate(request.mumu_folder, stop))
     with pytest.raises(EmulatorError):
         main.make_runner(dry_run=False)(RunRequest(Mode.NORMAL, 4))
     assert FakeEmulator.shutdowns == 0
@@ -445,15 +552,24 @@ def test_device_calls_have_timeouts_and_an_empty_screenshot_is_an_error():
     calls = []
 
     class FakeAdb:
+        png = b""
+
         def shell(self, cmd, encoding="utf-8", timeout=None):
             calls.append((cmd, timeout))
-            return b""
+            return self.png if cmd == "screencap -p" else ""
     dev = Device.__new__(Device)
     dev._stop, dev._d, dev._scale = None, FakeAdb(), 1.0
     with pytest.raises(DeviceError, match="not responding"):
         dev.screenshot()
+    # Invalid geometry now blocks input; a valid capture is required before sending a tap.
+    with pytest.raises(DeviceError):
+        dev.tap(10, 20, settle=0)
+    assert not any(isinstance(c, list) and c[:2] == ["input", "tap"] for c, _ in calls)
+    import cv2
+    import numpy as np
+    dev._d.png = cv2.imencode(".png", np.zeros((2560, 1440, 3), np.uint8))[1].tobytes()
     dev.tap(10, 20, settle=0)
-    assert all(t == main.config.ADB_TIMEOUT for _, t in calls) and calls[1][0] == ["input", "tap", "10", "20"]
+    assert all(t == main.config.ADB_TIMEOUT for _, t in calls) and calls[-1][0] == ["input", "tap", "10", "20"]
     dev.back(settle=0)  # leaving the browser the daily rewards open
     assert calls[-1] == (["input", "keyevent", "4"], main.config.ADB_TIMEOUT)
 
@@ -526,6 +642,22 @@ def test_pending_stars_falls_back_to_the_last_beaten_level(monkeypatch):
     assert ("beaten", 13) in nav.started
 
 
+def test_pending_elite_rechecks_after_each_run_and_advances_to_other_pending_levels(monkeypatch):
+    nav = FakeNav(energy=15)
+    pending = iter((21, 19, 10))
+    def start(mode):
+        assert mode is Mode.ELITE
+        level = next(pending)
+        nav.started.append(("pending", level))
+        nav.energy -= 5
+        return level
+    nav.start_pending_stars = start
+    report = run_with(monkeypatch, nav, [V, V, V],
+                      RunRequest(Mode.ELITE, None, repeat=True, last_beaten=True, pending_stars=True))
+    assert report.results == [V, V, V]
+    assert nav.started == ["detect", ("pending", 21), ("pending", 19), ("pending", 10)]
+
+
 def test_patrol_is_skipped_until_its_reward_is_due(monkeypatch):
     clock = [1_000_000.0]
     monkeypatch.setattr(main.time, "time", lambda: clock[0])
@@ -533,7 +665,7 @@ def test_patrol_is_skipped_until_its_reward_is_due(monkeypatch):
 
     class R(FakeRoutine):
         patrol_wait = 3600
-    FakeRoutine.patrols, state = 0, {}
+    FakeRoutine.patrols, state = 0, main.RunState(RunRequest(Mode.NORMAL, None), FakeEmulator(""))
     main._claim_patrol(R(), state)
     clock[0] += 1800
     main._claim_patrol(R(), state)  # 30 min later: still nothing to claim
@@ -595,7 +727,7 @@ def test_failed_patrol_is_retried_much_later(monkeypatch):
             pass
     clock = [1_000_000.0]
     monkeypatch.setattr(main.time, "time", lambda: clock[0])
-    FakeRoutine.patrols, state = 0, {}
+    FakeRoutine.patrols, state = 0, main.RunState(RunRequest(Mode.NORMAL, None), FakeEmulator(""))
     main._claim_patrol(R(nav=Nav()), state)
     main._claim_patrol(R(nav=Nav()), state)  # one failure can be a hiccup: tried again after the next level
     clock[0] += 3600
@@ -608,12 +740,12 @@ def test_a_restart_during_the_routine_resumes_it_with_the_parts_done_so_far(monk
     seen = []
 
     class Breaks(FakeRoutine):
-        def run_parts(self, progress=None):
-            seen.append(list(progress.get("parts", [])))
+        def run_parts(self, progress=None, *, only=None):
+            seen.append(list(progress.parts))
             if len(seen) == 1:
-                progress.setdefault("parts", []).append(("vip", "done"))
+                progress.parts.append(("vip", "done"))
                 raise main.NavigationError("the emulator froze in the arena")  # not a part failure: a restart
-            return super().run_parts(progress)
+            return super().run_parts(progress, only=only)
     monkeypatch.setattr(main, "Routine", Breaks)
     report = run_with(monkeypatch, FakeNav(energy=10), [V], RunRequest(Mode.NORMAL, 4, repeat=True, full=True))
     assert seen == [[], [("vip", "done")]]  # the second try knows VIP is done
@@ -628,3 +760,78 @@ def test_a_level_left_running_is_played_out_first(monkeypatch):
     report = run_with(monkeypatch, nav, [D, V], RunRequest(Mode.NORMAL, 4))
     assert report.results == [V]  # the leftover level (D) is played, then the requested run
     assert nav.started == ["detect", ("stars", 4)]
+
+
+def test_google_recovery_escalates_game_only_and_reinitializes_device(monkeypatch):
+    from roguebot.device import DeviceError
+    class Google:
+        attempts = 0
+        recoveries = []
+
+        def start(self):
+            self.attempts += 1
+            if self.attempts <= 2:
+                raise DeviceError("Google connection lost")
+            return "localhost:6520", "google-adb.exe", False
+
+        def recover(self, *, restart_game=False):
+            self.recoveries.append(restart_game)
+    google = Google()
+    monkeypatch.setattr(main, "create_provider", lambda request, stop: google)
+    report = run_with(monkeypatch, FakeNav(energy=10), [V], RunRequest(Mode.NORMAL, 4, provider="google_play_games"))
+    assert report.results == [V]
+    assert google.recoveries == [False, True] and FakeEmulator.shutdowns == 0
+
+
+def test_google_disconnect_and_failed_recovery_stop_after_bounded_attempts(monkeypatch):
+    class Disconnected:
+        attempts = 0
+        def start(self):
+            self.attempts += 1
+            raise EmulatorError("err_google_connection", serial="localhost:6520")
+
+        def recover(self, *, restart_game=False):
+            raise EmulatorError("err_google_connection", serial="localhost:6520")
+    provider = Disconnected()
+    monkeypatch.setattr(main, "create_provider", lambda request, stop: provider)
+    with pytest.raises(EmulatorError, match="err_google_connection"):
+        main.make_runner(False)(RunRequest(Mode.NORMAL, None, provider="google_play_games"))
+    assert provider.attempts == main.config.MAX_SAME_ERROR + 1
+    assert FakeEmulator.shutdowns == 0
+
+
+@pytest.mark.parametrize("resumable", [True, False])
+def test_recovery_records_the_started_level_without_spending_again_if_it_can_resume(monkeypatch, tmp_path, resumable):
+    from roguebot.metrics import History
+
+    nav = FakeNav(energy=20)
+    nav.last_energy_cost = 5
+    seen = []
+
+    class Player:
+        def __init__(self, *args, build_state, inspect_modifiers=False):
+            self.progress = build_state
+            seen.append(build_state)
+
+        def play_level(self):
+            if len(seen) == 1:
+                self.progress.focus = "fire"
+                nav.in_level = resumable
+                raise main.PlayError("connection lost")
+            assert self.progress.focus == ("fire" if resumable else None)
+            nav.in_level = False
+            return V
+
+    monkeypatch.setattr(main, "Device", lambda *a, **k: object())
+    monkeypatch.setattr(main, "Ocr", lambda: object())
+    monkeypatch.setattr(main, "Navigator", lambda *a, **k: nav)
+    monkeypatch.setattr(main, "Player", Player)
+    history = History(tmp_path / "runs.json")
+    controller = main.Runner(False)
+    controller.history = history
+    report = controller.run(RunRequest(Mode.NORMAL, 4))
+    assert report.results == [V]
+    assert (seen[0] is seen[1]) == resumable
+    assert nav.started.count(("stars", 4)) == (1 if resumable else 2)
+    assert [(row["level"], row["energy"], row["result"]) for row in history.read()] == (
+        [(4, 5, "victory")] if resumable else [(4, 5, "abandoned"), (4, 5, "victory")])
