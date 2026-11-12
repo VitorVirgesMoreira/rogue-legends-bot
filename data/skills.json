@@ -1,11 +1,21 @@
 {
- "absolutezero": {
-  "name": "AbsoluteZero",
+ "abselute": {
+  "name": "Abselute",
   "lang": "en",
   "rarity": "mythic",
   "damage_type": "ice",
   "nature": "magic",
   "role": "damage",
+  "description": "first time, Freeze aking you ct, and recover HP",
+  "auto": true
+ },
+ "absolutezero": {
+  "name": "AbsoluteZero",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
   "description": "When HP <30% for the first time, Freeze yourself for 2 turns, making you invincible, unable to act, and recover HP every turn.",
   "auto": true
  },
@@ -99,6 +109,26 @@
   "description": "Cuando la HP <40% por primera vez, usa Barrido 2 veces.",
   "auto": true
  },
+ "ascend": {
+  "name": "Ascend",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "DMG Dealt -30%. DMG Taken +20%. Self Aggro +50%. Your Ultimate revives a downed ally at 50% HP. Cooldown: 4 turns.",
+  "auto": true
+ },
+ "atkup": {
+  "name": "ATKUp",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "ATK+10%.",
+  "auto": true
+ },
  "aumentodedanodefinitivc": {
   "name": "Aumento de Daño Definitivc",
   "lang": "es",
@@ -149,6 +179,16 @@
   "description": "Despuês de usar tu Definitiva, activa Barrido 2 veces.",
   "auto": true
  },
+ "basicattackdamageup": {
+  "name": "Basic Attack DamageUp",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Basic Attack Damage ",
+  "auto": true
+ },
  "bateriacargada": {
   "name": "Bateria Cargada",
   "lang": "es",
@@ -169,6 +209,16 @@
   "description": "Max HP +↑",
   "auto": true
  },
+ "berserk": {
+  "name": "Berserk",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": "bleed",
+  "nature": "physical",
+  "role": "damage",
+  "description": "When HP <50%, Cleave is used 2 times instead of 1.",
+  "auto": true
+ },
  "betterwithfriends": {
   "name": "Better With-Friends",
   "lang": "en",
@@ -177,6 +227,46 @@
   "nature": "physical",
   "role": "damage",
   "description": "Pet DMG ",
+  "auto": true
+ },
+ "bla": {
+  "name": "BLA",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": "venom",
+  "nature": "physical",
+  "role": "damage",
+  "description": "SneakyPoison When you dodge, apply Poison to a random enemy 2 times.",
+  "auto": true
+ },
+ "blessing": {
+  "name": "Blessing",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "DMG Dealt -40%. Every turn, all allies gain +6% DMG Boost and +4% DMGReduttionGhax 10 stacks).",
+  "auto": true
+ },
+ "bloodforblood": {
+  "name": "Blood for Blood",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "While HP >40%: ATK +70%, DMG Taken +40%.",
+  "auto": true
+ },
+ "bloodlust": {
+  "name": "Bloodlust",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "bleed",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Wound deals increased damage to enemies below 50% of their Max HP.",
   "auto": true
  },
  "boladefuegodefinitiva": {
@@ -197,6 +287,16 @@
   "nature": "magic",
   "role": "damage",
   "description": "Cuando tus Ataques de Arma golpeen criticamente, lanza una Bola de Fuego.",
+  "auto": true
+ },
+ "borserk": {
+  "name": "Borserk",
+  "lang": null,
+  "rarity": "mythic",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "When HP <50% Cleave is used 2 times instead of 1.",
   "auto": true
  },
  "brote": {
@@ -293,10 +393,40 @@
   "name": "Cleave",
   "lang": "en",
   "rarity": "common",
-  "damage_type": null,
+  "damage_type": "bleed",
   "nature": "physical",
   "role": "damage",
   "description": "Weapon Attacks have a chance to trigger Cleave, dealing damage to all enemies.",
+  "auto": true
+ },
+ "cleavemastery": {
+  "name": "Cleave Mastery",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "bleed",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Cleave DMG , but no longer applies Wound.",
+  "auto": true
+ },
+ "comb": {
+  "name": "Comb",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Combo ↑↑↑, :ain lasts until end every of battle.",
+  "auto": true
+ },
+ "combatmedic": {
+  "name": "Combat-Medic",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Your Weapon Attacks heal the lowest HP ally for 20% of your ATK.",
   "auto": true
  },
  "combomastery": {
@@ -377,6 +507,16 @@
   "nature": "physical",
   "role": "damage",
   "description": "Cada vez que tu Ataque del arma asesta un golpe critico, aplica 2 acumulaciones de Herida",
+  "auto": true
+ },
+ "count": {
+  "name": "Count",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Counte ↑↑. gain lasts until every end of battle.",
   "auto": true
  },
  "countericicle": {
@@ -529,6 +669,26 @@
   "description": "Shuriken DMG , but Shurikens no longer trigger other effects.",
   "auto": true
  },
+ "deathlotus": {
+  "name": "Death Lotus",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": "shuriken",
+  "nature": "physical",
+  "role": "damage",
+  "description": "After using your Ultimate, throw 5 Shurikens at random enemies.",
+  "auto": true
+ },
+ "deathmark": {
+  "name": "Death-Mark",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Mark a random enemy: you always attack it and deal +25% damage to it. When it dies, the mark moves to another random enemy.",
+  "auto": true
+ },
  "decontraataque": {
   "name": "de Contraataque",
   "lang": "es",
@@ -549,6 +709,16 @@
   "description": "Cada ronda,",
   "auto": true
  },
+ "deepvenom": {
+  "name": "Deep Venom",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": "venom",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Every 2 rounds, your next Basic Attack will double the enemy's Poison stacks.",
+  "auto": true
+ },
  "defensacreciente": {
   "name": "Defensa Creciente",
   "lang": "es",
@@ -557,6 +727,26 @@
   "nature": "physical",
   "role": "support",
   "description": "Cada ronda, DEF ",
+  "auto": true
+ },
+ "defup": {
+  "name": "DEFUp",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "DEF +10%.",
+  "auto": true
+ },
+ "deleoading": {
+  "name": "DELEoading",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "DEF +10%",
   "auto": true
  },
  "delrayo": {
@@ -647,6 +837,26 @@
   "nature": "physical",
   "role": "support",
   "description": "Enemy heals and shields are 50% less effective",
+  "auto": true
+ },
+ "divinecaress": {
+  "name": "Divine-Caress",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Every round, all allies gain a Shield of 5% of their Max HP.",
+  "auto": true
+ },
+ "divinelink": {
+  "name": "DivineLink",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +50%. Every round, link to the lowest HP ally: 50% of the damage they take is redirected to you, and 5% of the damage they deal heals you.",
   "auto": true
  },
  "dodgerateup": {
@@ -783,10 +993,30 @@
   "name": "Enfoque Elemental",
   "lang": "es",
   "rarity": "legendary",
-  "damage_type": "fire",
-  "nature": "magic",
+  "damage_type": null,
+  "nature": "physical",
   "role": "damage",
   "description": "Infligir daño de Fuego/Hielo/Rayo aumenta el daño que infliges de ese tipo de elemento en +15% acumulándose hasta 5 veces. Infligir daño con un elemento diferente reinicia todas tus acumulaciones.",
+  "auto": true
+ },
+ "enhancedcombo": {
+  "name": "Enhanced Combo",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Every Combo Attack increases Crit Rate by +2%, stacking up to 15 times.",
+  "auto": true
+ },
+ "enhancedcounter": {
+  "name": "Enhanced-Counter",
+  "lang": null,
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Every Counter Attack increases Damage Reduction by +2%, stacking up to 15 times.",
   "auto": true
  },
  "enrageddodge": {
@@ -853,7 +1083,7 @@
   "name": "Envenom",
   "lang": "en",
   "rarity": "legendary",
-  "damage_type": "bleed",
+  "damage_type": "venom",
   "nature": "physical",
   "role": "damage",
   "description": "Whenever you would have applied Wound, apply Poison instead.",
@@ -897,6 +1127,16 @@
   "nature": "physical",
   "role": "support",
   "description": "Reducciôn de Daño , al ser atacado hay 50% de probabilidad de ganar +20% de Reducción de Daño contra el ataque.",
+  "auto": true
+ },
+ "essentialdignity": {
+  "name": "Essential Dignity",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "When damage leaves an ally below 50% HP, heaī them for 200% of your ATK. Cooldown: 2 turns.",
   "auto": true
  },
  "estrellacele": {
@@ -1179,6 +1419,26 @@
   "description": "Después de aplicar Quemadura 10 veces, lanza Fusión.",
   "auto": true
  },
+ "generosity": {
+  "name": "Generosity",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +50%. Your heals and Shields on allies are 40% stronger.",
+  "auto": true
+ },
+ "glass": {
+  "name": "Glass",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "ATKY0",
+  "auto": true
+ },
  "glasscannon": {
   "name": "Glass Cannon",
   "lang": "en",
@@ -1289,6 +1549,16 @@
   "description": "Each Bolt increases your Lightning DMG by +8% for 2 turns.",
   "auto": true
  },
+ "icemastery": {
+  "name": "Ice-Mastery",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "ice",
+  "nature": "magic",
+  "role": "damage",
+  "description": "Ice DMG ",
+  "auto": true
+ },
  "icespikes": {
   "name": "IceSpikes",
   "lang": "en",
@@ -1303,9 +1573,9 @@
   "name": "Ice-Wall",
   "lang": "en",
   "rarity": "common",
-  "damage_type": "ice",
-  "nature": "magic",
-  "role": "damage",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
   "description": "When you take damage for the first time, take 50% DMG instead and counter with Icicle.",
   "auto": true
  },
@@ -1359,6 +1629,16 @@
   "description": "Chance to apply Burn is doubled. Burn now stacks infinitely.",
   "auto": true
  },
+ "inspiration": {
+  "name": "Inspiration",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +100%. Every 2 turns, all allies gain +25% DEF (max 5 stacks).",
+  "auto": true
+ },
  "jamuerte": {
   "name": "Ja.Muerte",
   "lang": "es",
@@ -1377,6 +1657,16 @@
   "nature": "physical",
   "role": "damage",
   "description": "",
+  "auto": true
+ },
+ "killerinstinct": {
+  "name": "KillerInstinct",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "DMG Boost +30%. Your healing effects -75%.",
   "auto": true
  },
  "lado": {
@@ -1443,10 +1733,20 @@
   "name": "Lash Out",
   "lang": "en",
   "rarity": "common",
-  "damage_type": null,
+  "damage_type": "bleed",
   "nature": "physical",
   "role": "damage",
   "description": "When HP <40% for the first time, use Cleave 2 times.",
+  "auto": true
+ },
+ "legacy": {
+  "name": "Legacy",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +50%. When you die, all allies gain +25% DMG Reduction for the rest of combat.",
   "auto": true
  },
  "lentoperoseguro": {
@@ -1467,6 +1767,26 @@
   "nature": "physical",
   "role": "damage",
   "description": "Daño de Efectos de Estado +40%",
+  "auto": true
+ },
+ "lethality": {
+  "name": "Lethality",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "When landing a Weapon Attack, gain +2% Crit Rate and +1% Crit DMG (max 20 stacks).",
+  "auto": true
+ },
+ "lickingwounds": {
+  "name": "Licking Wounds",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "bleed",
+  "nature": "physical",
+  "role": "damage",
+  "description": "After defeating an enemy, restore some HP. Effectiveness increases for each stack of Wound the enemy had.",
   "auto": true
  },
  "lifesteal": {
@@ -1699,6 +2019,36 @@
   "description": "Critical Hit Rate , Combo Rate Counter Rate",
   "auto": true
  },
+ "mastery": {
+  "name": "Mastery",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "DMG↑↑",
+  "auto": true
+ },
+ "maxhpup": {
+  "name": "MaxHP-Up",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Max HP +10%.",
+  "auto": true
+ },
+ "medica": {
+  "name": "Medica",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Every round, all allies heal 5% of their Max HP.",
+  "auto": true
+ },
  "mejorconamigos": {
   "name": "Mejor Con Amigos",
   "lang": "es",
@@ -1707,6 +2057,16 @@
   "nature": "physical",
   "role": "damage",
   "description": "Daño de mascota",
+  "auto": true
+ },
+ "meltd": {
+  "name": "Meltd",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "times, After applying Meltdo",
   "auto": true
  },
  "meltdown": {
@@ -1719,6 +2079,16 @@
   "description": "After applying Burn 10 times, cast Meltdown.",
   "auto": true
  },
+ "mercystrike": {
+  "name": "Mercy Strike",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Deal +30% damage to enemies below 25% HP.",
+  "auto": true
+ },
  "meteor": {
   "name": "Meteor",
   "lang": "en",
@@ -1729,6 +2099,16 @@
   "description": "After casting Flame Strike, you have a chance to cast Meteor",
   "auto": true
  },
+ "motivatingballad": {
+  "name": "Motivating Ballad",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "DMG Dealt -25%. Every turn, all allies gain +10 Ultimate Gauge.",
+  "auto": true
+ },
  "murodehielo": {
   "name": "Muro de Hielo",
   "lang": "es",
@@ -1737,6 +2117,16 @@
   "nature": "magic",
   "role": "damage",
   "description": "Cuando recibes daño por primera vez, recibes 50% de Daño en su lugar y contraatacas con Carámbano.",
+  "auto": true
+ },
+ "ninjadodge": {
+  "name": "Ninja Dodge",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": "shuriken",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Whenever you dodge, throw 2 Shurikens",
   "auto": true
  },
  "novadeescarcha": {
@@ -1809,6 +2199,16 @@
   "description": "Deal increased DMG to enemies afflicted with Wound.",
   "auto": true
  },
+ "outbreak": {
+  "name": "Outbreak",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "venom",
+  "nature": "physical",
+  "role": "damage",
+  "description": "At round 5, apply Poison 10 on all enemies.",
+  "auto": true
+ },
  "poisoncloud": {
   "name": "Poison Cloud",
   "lang": "en",
@@ -1833,7 +2233,7 @@
   "name": "PoisonShuriken",
   "lang": "en",
   "rarity": "common",
-  "damage_type": "venom",
+  "damage_type": "shuriken",
   "nature": "physical",
   "role": "damage",
   "description": "Every 2 rounds, throw 1 Shuriken. All Shurikens have a chance to apply Poison.",
@@ -1847,6 +2247,16 @@
   "nature": "physical",
   "role": "damage",
   "description": "Weapon Attacks will apply 1 stack of Poison.",
+  "auto": true
+ },
+ "provoke": {
+  "name": "Provoke",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "DMG Reduction +30%. For the first 2 turns, Self Aggro +500°",
   "auto": true
  },
  "puasdehielo": {
@@ -1867,6 +2277,36 @@
   "nature": "magic",
   "role": "damage",
   "description": "Deal more damage to burning targets.",
+  "auto": true
+ },
+ "quellingstrikes": {
+  "name": "Quelling Strikes",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Self Aggro -100%. Every turn, gain +5% ATK (max 5 stacks).",
+  "auto": true
+ },
+ "quickthrow": {
+  "name": "QuickThrow",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "shuriken",
+  "nature": "physical",
+  "role": "damage",
+  "description": "All Shuriken cooldowns are reduced by 1 turn.",
+  "auto": true
+ },
+ "ragingstrikes": {
+  "name": "Raging Strikes",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Self Aggro_+100%. Every turn, gain +10% ATK (max 10 stacks).",
   "auto": true
  },
  "ramp": {
@@ -1979,6 +2419,16 @@
   "description": "Recibes 40% menos daño de los Ataques Definitivos enemigos",
   "auto": true
  },
+ "resolve": {
+  "name": "Resolve",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +50%. When the first time, gain Reduction for 1 turn.",
+  "auto": true
+ },
  "resurrection": {
   "name": "Resurrection",
   "lang": "en",
@@ -1987,6 +2437,16 @@
   "nature": "physical",
   "role": "support",
   "description": "Revive after your first death. Effective only once.",
+  "auto": true
+ },
+ "resurrocti": {
+  "name": "Resurrocti",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Revive after your first death. Effective only",
   "auto": true
  },
  "robodevida": {
@@ -2019,6 +2479,16 @@
   "description": "Herida inflige más daño a los enemigos por debajo del 50% de su HP máx..",
   "auto": true
  },
+ "shadowpartner": {
+  "name": "Shadow-Partner",
+  "lang": "en",
+  "rarity": "mythic",
+  "damage_type": "shuriken",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Double the amount of Shurikens thrown.",
+  "auto": true
+ },
  "shieldsup": {
   "name": "Shields-Up!",
   "lang": "en",
@@ -2037,6 +2507,16 @@
   "nature": "physical",
   "role": "damage",
   "description": "Energetic Start combat with +50 Ultimate Charge",
+  "auto": true
+ },
+ "shuricoins": {
+  "name": "Shuricoins",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "shuriken",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Whenever a Shuriken is thrown, gain 3 Shop Tokens",
   "auto": true
  },
  "shurikencurativo": {
@@ -2087,6 +2567,16 @@
   "nature": "physical",
   "role": "damage",
   "description": "Cada 4 Shurikens lanzados, lanza un Shuriken Fuma enorme.",
+  "auto": true
+ },
+ "shurikenmastery": {
+  "name": "Shuriken Mastery",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": "shuriken",
+  "nature": "physical",
+  "role": "damage",
+  "description": "Shuriken DMG ",
   "auto": true
  },
  "shurikenthrow": {
@@ -2143,7 +2633,7 @@
   "name": "SteelCyclone",
   "lang": "en",
   "rarity": "legendary",
-  "damage_type": null,
+  "damage_type": "bleed",
   "nature": "physical",
   "role": "damage",
   "description": "After using Cleave 3 times, use Steel Cyclone, dealing damage to all enemies.",
@@ -2239,13 +2729,23 @@
   "description": "Tasa de Golpe Critico ",
   "auto": true
  },
+ "thornmail": {
+  "name": "Thornmail",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +50%, DMG Reduction +30%. When hit, reflect 400% of the damage to all enemies.",
+  "auto": true
+ },
  "thrillofbattle": {
   "name": "Thrill-of Battle",
   "lang": null,
   "rarity": "mythic",
-  "damage_type": null,
+  "damage_type": "bleed",
   "nature": "physical",
-  "role": "support",
+  "role": "damage",
   "description": "When HP <50%, Cleave will also restore a bit of HP",
   "auto": true
  },
@@ -2303,7 +2803,7 @@
   "name": "Ultimate Cleave",
   "lang": "en",
   "rarity": "common",
-  "damage_type": null,
+  "damage_type": "bleed",
   "nature": "physical",
   "role": "damage",
   "description": "After using your Ultimate, trigger Cleave 2 times.",
@@ -2317,6 +2817,16 @@
   "nature": "magic",
   "role": "damage",
   "description": "Cast 2 Fireballs after using your Ultimate.",
+  "auto": true
+ },
+ "ultimateflamestrike": {
+  "name": "Ultimate Flame Strike",
+  "lang": "en",
+  "rarity": "common",
+  "damage_type": "fire",
+  "nature": "magic",
+  "role": "damage",
+  "description": "After using your Ultimate, cast 1 Flame Strike",
   "auto": true
  },
  "ultimateicicle": {
@@ -2339,6 +2849,16 @@
   "description": "Basic Attacks grant extra Ultimate Charge.",
   "auto": true
  },
+ "ultimateopportunity": {
+  "name": "Ultimate Opportunity",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Start with a full Ultimate Gauge Ultimate damage +50%",
+  "auto": true
+ },
  "ultimatepoison": {
   "name": "Ultimate-Poison",
   "lang": "en",
@@ -2355,7 +2875,7 @@
   "rarity": "legendary",
   "damage_type": null,
   "nature": "physical",
-  "role": "damage",
+  "role": "support",
   "description": "You take 40% less damage from enemy Ultimate Attacks",
   "auto": true
  },
@@ -2379,12 +2899,22 @@
   "description": "When HP <50%, HP Heal effects are +100% more effective.",
   "auto": true
  },
+ "unyielding": {
+  "name": "Unyielding",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "support",
+  "description": "Self Aggro +150%. Once per combat, fatal damage can't drop your HP below 1 for the rest of the round.",
+  "auto": true
+ },
  "vampirico": {
   "name": "Vampirico",
   "lang": null,
   "rarity": "legendary",
   "damage_type": null,
-  "nature": "magic",
+  "nature": "physical",
   "role": "support",
   "description": "Tasa de Robo de Vida +25%, Efecto de Robo de Vida +50%, Daño Mágico",
   "auto": true
@@ -2439,6 +2969,26 @@
   "description": "Physical DMG O, Magical DMG",
   "auto": true
  },
+ "weapo": {
+  "name": "Weapo",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Your Ba and Co deal more DMG",
+  "auto": true
+ },
+ "weaponmastery": {
+  "name": "Weapon-Mastery",
+  "lang": "en",
+  "rarity": "legendary",
+  "damage_type": null,
+  "nature": "physical",
+  "role": "damage",
+  "description": "Your Basic Attacks, Combo Attacks and Counter Attacks deal +80% more DMG",
+  "auto": true
+ },
  "wizard": {
   "name": "Wizard",
   "lang": "en",
@@ -2463,7 +3013,7 @@
   "name": "Wound Shuriken",
   "lang": "en",
   "rarity": "common",
-  "damage_type": "bleed",
+  "damage_type": "shuriken",
   "nature": "physical",
   "role": "damage",
   "description": "Every 2 rounds, throw 1 Shuriken. All Shurikens have a chance to apply Wound.",

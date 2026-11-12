@@ -9,12 +9,13 @@ import difflib
 import json
 import logging
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 from roguebot.settings import DATA_DIR
 from roguebot.persistence import write_json
 from roguebot.vision import normalize
+from roguebot.skill_data import card_version, rule_for
 
 log = logging.getLogger(__name__)
 
@@ -72,6 +73,9 @@ def infer_tags(name: str, description: str) -> tuple[str | None, str, str]:
     role: damage if it has a damage type; else support if its name has a support word ("Lifesteal",
     "Enraged Dodge"); else whichever of a damage/support word comes first; else damage.
     """
+    reference = rule_for(name)
+    if reference:
+        return reference.element, reference.nature, reference.role
     text = normalize(f"{name} . {description}")
     found = [(m.start(), t) for t, rx in _TYPE_RE.items() if (m := rx.search(text))]
     damage_type = min(found)[1] if found else None
@@ -100,6 +104,14 @@ class Skill:
     description: str = ""
     auto: bool = True            # tags inferred by the bot (set false after reviewing them)
 
+    @property
+    def reference(self):
+        return rule_for(self.name)
+
+    @property
+    def version(self) -> int | None:
+        return card_version(self.name, self.description)
+
 
 class Catalog:
     def __init__(self, path: Path = CATALOG_PATH):
@@ -109,22 +121,37 @@ class Catalog:
             data = json.loads(path.read_text(encoding="utf-8"))
             self.skills = {k: Skill(**v) for k, v in data.items()}
 
-    def lookup(self, name: str, description: str, rarity: str, lang: str | None) -> Skill:
+    def lookup(self, name: str, description: str, rarity: str, lang: str | None, *, persist: bool = True) -> Skill:
         """The known skill with this name (tolerating small OCR differences), or a new one, saved."""
         key = skill_key(name)
         if key not in self.skills:
             close = difflib.get_close_matches(key, list(self.skills), n=1, cutoff=0.85)
             if close:
-                return self.skills[close[0]]
+                candidate = self.skills[close[0]]
+                observed = infer_tags(name, description)[0]
+                reference = rule_for(name)
+                different_family = reference and candidate.reference and reference.id != candidate.reference.id
+                if not different_family and (not candidate.auto or not observed or observed == candidate.damage_type):
+                    key = close[0]
+        known = self.skills.get(key)
+        if known is None:
             damage_type, nature, role = infer_tags(name, description)
-            self.skills[key] = Skill(name, lang, rarity, damage_type, nature, role, description)
-            log.info("New skill: %s (%s, %s, %s, %s)", name, rarity, damage_type or "-", nature, role)
-            try:
-                self.save()
-            except OSError:
-                del self.skills[key]  # a retry must still persist a skill whose write failed
-                raise
-        return self.skills[key]
+            known = Skill(name, lang, rarity, damage_type, nature, role, description)
+            if persist:
+                self.skills[key] = known
+                log.info("New skill: %s (%s, %s, %s, %s)", name, rarity, damage_type or "-", nature, role)
+                try:
+                    self.save()
+                except OSError:
+                    del self.skills[key]  # a retry must still persist a skill whose write failed
+                    raise
+        # Rank the current offer's rarity and description, not the first sighting's metadata.
+        # Reviewed tags remain intact; inferred tags can use a fresh description without rewriting it.
+        current = replace(known, name=name if card_version(name) is not None else known.name,
+                          rarity=rarity, description=description or known.description)
+        if known.auto and (description or rule_for(name)):
+            current.damage_type, current.nature, current.role = infer_tags(name, description or known.description)
+        return current
 
     def save(self) -> None:
         data = {k: asdict(v) for k, v in sorted(self.skills.items())}

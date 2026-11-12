@@ -93,12 +93,12 @@ def test_type_beats_rarity_and_rarity_breaks_ties():
     assert choose([FIRE, legendary_fire], build, BuildState(), can_reroll=False) == 1
 
 
-def test_nothing_wanted_rerolls_then_takes_the_rarest_then_the_first():
+def test_nothing_wanted_rerolls_then_prefers_neutral_utility_to_a_foreign_element():
     build = Build("magic")
     offer = [VENOM, sk("rare venom", "venom", rarity="legendary"), SHIELD]
     assert choose(offer, build, BuildState(), can_reroll=True) is None
-    assert choose(offer, build, BuildState(), can_reroll=False) == 1
-    assert choose([VENOM, ATK], build, BuildState(), can_reroll=False) == 0
+    assert choose(offer, build, BuildState(), can_reroll=False) == 2
+    assert choose([VENOM, ATK], build, BuildState(), can_reroll=False) == 1
 
 
 def test_support_after_n_damage_skills():
@@ -109,7 +109,7 @@ def test_support_after_n_damage_skills():
     assert choose([SHIELD, FIRE], build, state, can_reroll=False) == 1  # 1 damage taken
     state.take(FIRE)
     assert choose([FIRE, SHIELD], build, state, can_reroll=False) == 1  # 2 damage taken: support
-    assert choose([FIRE, ICE], build, state, can_reroll=True) == 1  # no support: the best damage (ice)...
+    assert choose([FIRE, ICE], build, state, can_reroll=True) == 0  # no support: stay on the established fire line
     state.take(FIRE)
     assert state.wants_support(build)  # ...and keep wanting support
     state.take(SHIELD)
@@ -125,5 +125,5 @@ def test_shop_order_rerolls_when_free_and_nothing_fits():
     build = Build("magic")
     assert shop_order([VENOM, SHIELD], build, BuildState(), can_reroll=True) is None
     assert shop_order([VENOM, SHIELD, FIRE], build, BuildState(), can_reroll=True)[0] == 2
-    # Not free: wanted first, then the rest (rarest first) so leftover coins still buy something.
-    assert shop_order([VENOM, sk("l", "venom", rarity="legendary"), FIRE], build, BuildState(), False) == [2, 1, 0]
+    # Off-line cards stay in the shop, even when there are spare coins and no free reroll.
+    assert shop_order([VENOM, sk("l", "venom", rarity="legendary"), FIRE], build, BuildState(), False) == [2]
