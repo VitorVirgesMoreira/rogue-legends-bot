@@ -207,10 +207,11 @@ def test_parse_power(s, value):
     assert parse_power(s) == value
 
 
-def test_pick_opponent_closest_not_stronger():
+def test_pick_opponent_highest_in_list_not_stronger():
     from roguebot.mode_screens import Opponent, pick_opponent
-    opponents = [Opponent(p, None) for p in (600, 100, 499, 500, 501)]
-    assert pick_opponent(500, opponents).power == 500
+    opponents = [Opponent(p, None) for p in (600, 100, 499, 500, 501)]  # list order, top first
+    assert pick_opponent(500, opponents).power == 100  # the top row we can beat gives the most points, not 500
+    assert pick_opponent(600, opponents).power == 600
     assert pick_opponent(50, opponents) is None  # all stronger: caller refreshes (if free) or takes the weakest
 
 
@@ -660,7 +661,7 @@ def test_pending_stars_scrolls_up_then_gives_up_at_level_1(monkeypatch):
 
 def test_version():
     import roguebot
-    assert roguebot.__version__ == "1.9.0"
+    assert roguebot.__version__ == "1.10.0"
 
 
 def test_data_dir_is_next_to_the_exe_when_frozen(monkeypatch, tmp_path):
@@ -882,3 +883,15 @@ def test_energy_claim_takes_the_reward_shown_over_the_popup_before_reading_it(mo
         labels.set_language(None)
     claim = (720, 2322)
     assert nav.device.taps == [config.ENERGY_ICON, (1000, 1685), claim, (480, 1390), claim, config.ENERGY_POPUP_CLOSE]
+
+
+def test_arena_opponents_are_in_list_order_whatever_the_ocr_order():
+    from roguebot.mode_screens import parse_arena_opponents, pick_opponent
+    from roguebot.vision import Text
+    rows = [(1400, "100k"), (600, "900k"), (1000, "200k")]  # OCR returned the rows out of order
+    texts = [Text("Arena Challenge", 500, 300, 900, 360), Text("500k", 500, 460, 640, 500)]
+    for y, power in rows:
+        texts += [Text("Challenge", 980, y - 25, 1160, y + 25), Text(power, 520, y + 60, 640, y + 100)]
+    panel = parse_arena_opponents(texts)
+    assert [o.power for o in panel.opponents] == [900000, 200000, 100000]
+    assert pick_opponent(panel.own_power, panel.opponents).power == 200000
