@@ -1,6 +1,8 @@
 """Screen recognition: turns OCR output into typed screen states. No input is sent from here."""
 
 import re
+from roguebot.event_rules import PREMIUM_CURRENCY, choose_event
+from roguebot.visual_events import match_event_title
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -321,20 +323,46 @@ def _option_enabled(img: np.ndarray, label: Text) -> bool:
     return roi[..., 1].mean() > config.EVENT_DISABLED_MAX_SATURATION
 
 
-def _event_option(img: np.ndarray, texts: list[Text]) -> tuple[int, int] | None:
-    """Tile event (title band + option labels above icons): where to tap, or None if not an event.
+@dataclass(frozen=True)
+class EventMenu:
+    title: Text
+    enabled: tuple[Text, ...]
+    descriptions: dict[Text, str]
+    source: str = "ocr"
+    score: float | None = None
 
-    Takes "Salir" (leave) when offered, else the leftmost option that is not greyed out.
-    """
-    has_title = any(_in_range(t.center[1], config.EVENT_TITLE_Y)
-                    and abs(t.center[0] - config.SCREEN_SIZE[0] // 2) < config.EVENT_TITLE_CENTER_TOLERANCE
-                    for t in texts)
-    labels = [t for t in texts if _in_range(t.center[1], config.EVENT_LABEL_Y)]
-    if not (has_title and labels):
+    def tap(self, option: Text) -> tuple[int, int]:
+        return option.center[0], option.center[1] + config.EVENT_ICON_BELOW_LABEL
+
+
+def parse_event_menu(img: np.ndarray, texts: list[Text]) -> EventMenu | None:
+    title = next((t for t in texts if _in_range(t.center[1], config.EVENT_TITLE_Y)
+                  and abs(t.center[0] - config.SCREEN_SIZE[0] // 2) < config.EVENT_TITLE_CENTER_TOLERANCE), None)
+    options = [t for t in texts if _in_range(t.center[1], config.EVENT_LABEL_Y)]
+    visual = None
+    if title is None and options and not footer_visible(img):
+        visual = match_event_title(img)
+        if visual:
+            title = visual.text
+    if not (title and options):
         return None
-    labels = [t for t in labels if _option_enabled(img, t)] or labels
-    label = next((t for t in labels if matches(t, L.LEAVE, exact=True)), min(labels, key=lambda t: t.center[0]))
-    return label.center[0], label.center[1] + config.EVENT_ICON_BELOW_LABEL
+    descriptions = {option: [option.norm] for option in options}
+    for text in texts:
+        if _in_range(text.center[1], config.EVENT_DESCRIPTION_Y):
+            nearest = min(options, key=lambda option: abs(option.center[0] - text.center[0]))
+            descriptions[nearest].append(text.norm)
+    return EventMenu(title, tuple(t for t in options if _option_enabled(img, t)),
+                     {option: " ".join(description) for option, description in descriptions.items()},
+                     "visual" if visual else "ocr", visual.score if visual else None)
+
+
+def _event_option(img: np.ndarray, texts: list[Text]) -> tuple[int, int] | None:
+    """Heal at <=25% HP; otherwise take damage/upgrades. Unknown events retain leave-first."""
+    menu = parse_event_menu(img, texts)
+    if menu is None or not menu.enabled:
+        return None
+    decision = choose_event(menu.title, menu.enabled, menu.descriptions, health_fraction(texts))
+    return menu.tap(decision.option) if decision.option else None
 
 
 def classify_level_screen(img: np.ndarray, texts: list[Text]) -> LevelState:
@@ -349,12 +377,14 @@ def classify_level_screen(img: np.ndarray, texts: list[Text]) -> LevelState:
         return LevelState(LevelScreen.DEFEAT, end.center)
     if end and find(texts, L.VICTORY):
         return LevelState(LevelScreen.VICTORY, end.center)
-    pick = find(texts, L.SKILL_PROMPT)
+    # OCR can join words in this prompt, e.g. "Select aSkill to learn!".
+    prompts = [variant.replace(" ", "") for variant in L.SKILL_PROMPT.variants]
+    pick = next((t for t in texts if any(prompt in "".join(t.norm.split()) for prompt in prompts)), None)
     if pick:
         # First card = topmost rarity tag ("Común", "Legendario"...) in the cards' top-left
         # corner. Anchoring on it skips the 1-5 pick counter of "SUBIDA DE PODER".
         tags = [t for t in texts if t.center[1] > pick.center[1]
-                and _in_range(t.center[0], config.SKILL_RARITY_X)]
+                and _in_range(t.center[0], config.SKILL_RARITY_X) and rarity_name(t)]
         if tags:
             first = min(tags, key=lambda t: t.center[1])
             return LevelState(LevelScreen.SKILL_PICK, (config.SCREEN_SIZE[0] // 2,
@@ -384,6 +414,8 @@ def classify_level_screen(img: np.ndarray, texts: list[Text]) -> LevelState:
     event_option = _event_option(img, texts)
     if event_option:
         return LevelState(LevelScreen.EVENT, event_option)
+    if parse_event_menu(img, texts):
+        return LevelState(LevelScreen.UNKNOWN)  # never mistake a description's exit word for a button
     if leave:  # e.g. "Meditación completa" -> "Salir"
         return LevelState(LevelScreen.LEAVE, leave.center)
     # Revive popup (over a fight). Checked late: skill/shop cards can mention "Revive" too.
@@ -549,3 +581,19 @@ def parse_fortune_teller(texts: list[Text]) -> FortuneTeller | None:
     balls = {int(m.group(1)): (t.center[0], t.center[1] + config.FORTUNE_BUTTON_BELOW_TAG)
              for t in texts if (m := _CHANCE_RE.match(t.norm))}
     return FortuneTeller(orbs, balls)
+
+
+_HP_RATIO = re.compile(r"^(\d+(?:[.,]\d+)?\s*[kmb]?)\s*/\s*(\d+(?:[.,]\d+)?\s*[kmb]?)$", re.I)
+
+def health_fraction(texts: list[Text]) -> float | None:
+    """Read a complete ratio from the HP bar; unreadable values stay unknown."""
+    from roguebot.mode_screens import parse_power
+    x1, y1, x2, y2 = config.HEALTH_REGION
+    for text in texts:
+        if x1 <= text.center[0] <= x2 and y1 <= text.center[1] <= y2:
+            match = _HP_RATIO.fullmatch(text.norm)
+            if match:
+                current, maximum = (parse_power(part) for part in match.groups())
+                if current is not None and maximum is not None and maximum > 0 and 0 <= current <= maximum:
+                    return current / maximum
+    return None

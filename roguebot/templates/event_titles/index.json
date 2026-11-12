@@ -1,0 +1,62 @@
+[
+  {
+    "file": "level_event_rest_title.png",
+    "title": "Un Momento de Descanso",
+    "language": "es",
+    "source": "level_event_rest.png"
+  },
+  {
+    "file": "level_event_cart_title.png",
+    "title": "Carro de Botin Abandonado",
+    "language": "es",
+    "source": "level_event_cart.png"
+  },
+  {
+    "file": "en_level_event_disabled_option_title.png",
+    "title": "Forbidden Knowledge",
+    "language": "en",
+    "source": "en_level_event_disabled_option.png"
+  },
+  {
+    "file": "en_level_potion_makers_hut_title.png",
+    "title": "Potion Maker's Hut",
+    "language": "en",
+    "source": "en_level_potion_makers_hut.png"
+  },
+  {
+    "file": "en_level_rest_only_title.png",
+    "title": "A Moment To Rest",
+    "language": "en",
+    "source": "en_level_rest_only.png"
+  },
+  {
+    "file": "en_event_altar_title.png",
+    "title": "Altar of Greed",
+    "language": "en",
+    "source": "en_event_altar.png"
+  },
+  {
+    "file": "en_event_knowledge_title.png",
+    "title": "Forbidden Knowledge",
+    "language": "en",
+    "source": "en_event_knowledge.png"
+  },
+  {
+    "file": "en_event_might_title.png",
+    "title": "Test of Might",
+    "language": "en",
+    "source": "en_event_might.png"
+  },
+  {
+    "file": "en_event_spoils_title.png",
+    "title": "Abandoned Spoils Cart",
+    "language": "en",
+    "source": "en_event_spoils.png"
+  },
+  {
+    "file": "en_event_devil_title.png",
+    "title": "Deal with the Devil",
+    "language": "en",
+    "source": "en_event_devil.png"
+  }
+]

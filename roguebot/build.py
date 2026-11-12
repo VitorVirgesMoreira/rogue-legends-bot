@@ -7,6 +7,8 @@ import uuid
 
 from roguebot.skills import DAMAGE, DAMAGE_TYPES, MAGIC, MAGIC_TYPES, PHYSICAL, RARITY_NAMES, SUPPORT, Skill, skill_key
 from roguebot.modifiers import Modifier, ModifierRules
+from roguebot.run_progress import RunProgress
+from roguebot.events import EventChoices
 from roguebot.vision import normalize
 from roguebot.combat_context import CombatContext, Loadout
 from roguebot import build_rules
@@ -56,6 +58,8 @@ class BuildState:
     pending_skill: PendingSkill | None = None  # dispatch is confirmed by leaving the offer, even after recovery
     modifiers: tuple[Modifier, ...] | None = None
     rules: ModifierRules = field(default_factory=ModifierRules)
+    run_progress: RunProgress = field(default_factory=RunProgress)
+    event_choices: EventChoices = field(default_factory=EventChoices)
     premium_shop_price: int = 0  # remember the price to save for across earlier shops/recovery
     context: CombatContext = field(default_factory=CombatContext)
     strategy: str = "balanced"
