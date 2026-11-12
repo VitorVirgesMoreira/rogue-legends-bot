@@ -1,0 +1,6 @@
+{
+  "source_sha256": "0cc7f7e4f9283af266feb24fe895a4b32b9c7ed1a8771b827873861e942bb917",
+  "jar_sha256": "395892c54b793079dc658bd48e28ef4b1d0cb3d73d66669f352281b20390dabf",
+  "main_class": "com.roguebot.input.TreeGesture",
+  "min_api": 21
+}

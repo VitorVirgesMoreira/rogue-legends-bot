@@ -90,16 +90,60 @@ def test_back_and_launch_use_bounded_adb_calls(device):
     assert any(c[:2] == ["monkey", "-p"] for c in device._d.calls if isinstance(c, list))
 
 
+def test_pinch_uses_two_pointers_in_the_same_landscape_viewport(device, monkeypatch):
+    uploads = []
+    monkeypatch.setattr("roguebot.device.subprocess.run", lambda cmd, **kw:
+                        uploads.append(cmd) or subprocess.CompletedProcess(cmd, 0, b""))
+    shell = device._d.shell
+    def reply(cmd, **kwargs):
+        result = shell(cmd, **kwargs)
+        return "ROGUEBOT_PINCH_OK" if isinstance(cmd, list) and cmd[:1] == ["env"] else result
+    monkeypatch.setattr(device._d, "shell", reply)
+    device.screenshot()
+    points = ((270, 1200), (1170, 1200), (490, 1200), (950, 1200))
+    expected = [str(v) for point in points for v in device.viewport.to_device(*point)]
+    device.pinch(*points, duration=.6, settle=0)
+    command = device._d.calls[-1]
+    assert command[:1] == ["env"] and command[2:5] == ["app_process", "/", "com.roguebot.input.TreeGesture"]
+    assert command[5:] == expected + ["600"]
+    assert uploads[0][:4] == ["google-adb.exe", "-s", "localhost:6520", "push"]
+    device.pinch(*points, duration=.6, settle=0)
+    assert len(uploads) == 1
 
 
+def test_new_device_reuses_a_verified_read_only_gesture_helper(device, monkeypatch):
+    import hashlib
+    from pathlib import Path
+    asset = Path(__file__).parents[1] / "roguebot/assets/tree-gesture.jar"
+    checksum = hashlib.sha256(asset.read_bytes()).hexdigest()
+    shell = device._d.shell
+    def reply(cmd, **kwargs):
+        result = shell(cmd, **kwargs)
+        if isinstance(cmd, list) and cmd[0] == "sha256sum":
+            return checksum + "  " + cmd[1]
+        return "ROGUEBOT_PINCH_OK" if isinstance(cmd, list) and cmd[0] == "env" else result
+    monkeypatch.setattr(device._d, "shell", reply)
+    monkeypatch.setattr("roguebot.device.subprocess.run", lambda *a, **k: pytest.fail("Verified helper must not be uploaded again"))
+    device.pinch((270, 1200), (1170, 1200), (490, 1200), (950, 1200), settle=0)
 
 
+def test_pinch_does_not_run_after_stop_or_viewport_loss(device):
+    import threading
+    from roguebot.device import Stopped
+    device._stop = threading.Event()
+    device._stop.set()
+    with pytest.raises(Stopped):
+        device.pinch((270, 1200), (1170, 1200), (490, 1200), (950, 1200), settle=0)
+    device._stop.clear()
+    device._d.image[:] = 0
+    with pytest.raises(DeviceError):
+        device.pinch((270, 1200), (1170, 1200), (490, 1200), (950, 1200), settle=0)
+    assert not any(isinstance(cmd, list) and cmd[0] == "env" for cmd in device._d.calls)
 
 
-
-
-
-
+def test_android_must_confirm_the_pinch(device):
+    with pytest.raises(DeviceError, match="did not confirm"):
+        device.pinch((270, 1200), (1170, 1200), (490, 1200), (950, 1200), settle=0)
 
 
 def test_healthy_device_is_not_reconnected(device, monkeypatch):

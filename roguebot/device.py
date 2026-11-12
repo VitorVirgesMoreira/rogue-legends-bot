@@ -242,4 +242,38 @@ class Device:
         self._touch()
         self.wait(settle)
 
-
+    def pinch(self, first_start, second_start, first_end, second_end, *, duration=.6,
+              settle=config.SCROLL_SETTLE) -> None:
+        """Two simultaneous fingers; all four points use one validated viewport."""
+        if not .1 <= duration <= 1.5:
+            raise ValueError("Pinch duration must be between 0.1 and 1.5 seconds")
+        points = [self._px(*first_start)]
+        points.extend(self.viewport.to_device(*p) for p in (second_start, first_end, second_end))
+        self._check_stop()
+        asset = Path(__file__).parent / "assets/tree-gesture.jar"
+        if not asset.is_file():
+            raise DeviceError("Bundled two-finger gesture helper is missing")
+        checksum = hashlib.sha256(asset.read_bytes()).hexdigest()
+        remote = "/data/local/tmp/roguebot-gesture-" + checksum[:16] + ".jar"
+        try:
+            if self._gesture_remote != remote:
+                existing = self._d.shell(["sha256sum", remote], timeout=config.ADB_TIMEOUT)
+                if not existing.startswith(checksum + " "):
+                    self._d.shell(["chmod", "644", remote], timeout=config.ADB_TIMEOUT)
+                    subprocess.run([self._adb, "-s", self._serial, "push", str(asset), remote],
+                                   capture_output=True, check=True, timeout=config.ADB_TIMEOUT)
+                self._d.shell(["chmod", "444", remote], timeout=config.ADB_TIMEOUT)
+                self._gesture_remote = remote
+            self._check_stop()
+            output = self._d.shell(["env", "CLASSPATH=" + remote, "app_process", "/",
+                                   "com.roguebot.input.TreeGesture",
+                                   *(str(v) for point in points for v in point), str(round(duration * 1000))],
+                                  timeout=config.ADB_TIMEOUT + duration)
+        except (OSError, subprocess.SubprocessError, adbutils.AdbError) as exc:
+            self._gesture_remote = None
+            raise DeviceError(f"Two-finger gesture failed: {exc}") from exc
+        if "ROGUEBOT_PINCH_OK" not in output:
+            self._gesture_remote = None
+            raise DeviceError("Android did not confirm the two-finger gesture")
+        self._touch()
+        self.wait(settle)

@@ -25,6 +25,7 @@ from roguebot.screens import (
 )
 from roguebot.setup_guard import check_manual_setup
 from roguebot.skill_data import key
+from roguebot.tree_survey import TreeSurvey
 from roguebot.vision import Ocr, find, parse_level_number
 
 log = logging.getLogger(__name__)
@@ -483,7 +484,8 @@ class AccountReader:
             self._stable(_tree_view)
             return self.last_image, self.last_texts
 
-        for (row, column), observed_image, observed_texts in [((0, 0), *read_view())]:
+        survey = TreeSurvey(self.device, read_view, S.tree_rank_labels)
+        for (row, column), observed_image, observed_texts in survey.views():
             self.snapshot.progress["tree_position"] = [row, column]
             # Checkpoint coordinates belong to this actual view, never to the old
             # four-page route or a different zoom/pan position on resume.
@@ -515,7 +517,7 @@ class AccountReader:
                 self.device.tap(*close)
                 visited.append(signature)
                 self._checkpoint()
-        self.snapshot.progress["tree_coverage"] = "visible_view"
+        self.snapshot.progress["tree_coverage"] = "bounded" if survey.limit_reached else "edges_reached"
         self._checkpoint()
 
     def scan(self, *, pets_only=False):
