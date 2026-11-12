@@ -1,8 +1,6 @@
 """Screen recognition: turns OCR output into typed screen states. No input is sent from here."""
 
 import re
-from roguebot.event_rules import PREMIUM_CURRENCY, choose_event
-from roguebot.visual_events import match_event_title
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -11,9 +9,10 @@ import cv2
 import numpy as np
 
 from roguebot import config, labels as L
+from roguebot.event_rules import PREMIUM_CURRENCY, choose_event
 from roguebot.skills import RARITY_NAMES
-from roguebot.vision import Ocr, Text, find, match_template, matches, parse_level_number
-from roguebot.vision import normalize
+from roguebot.vision import Ocr, Text, find, match_template, matches, normalize, parse_level_number
+from roguebot.visual_events import match_event_title
 
 
 class Mode(Enum):
@@ -44,7 +43,7 @@ class Card:
     number: int
     header: Text
     button: Text | None          # None when locked or the button is out of view
-    stars: int = 3               # earned stars (gold icons in the header); each one gives rewards
+    stars: int | None = None     # earned gold/purple stars; None when the header icons are unreadable
 
 
 def parse_lobby(texts: list[Text]) -> Lobby | None:
@@ -241,7 +240,7 @@ class LevelScreen(Enum):
     AUTO_PLAY = "auto_play"      # green dice "Toca para Detener": the game rolls by itself; never tap it (stops it)
     FIGHT = "fight"              # "Ronda N/30", plays by itself
     EVENT = "event"              # tile event with options; we always pick "Salir" (leave)
-    SHOP = "shop"                # shop tile; we buy nothing and press "Salir"
+    SHOP = "shop"                # shop tile; buy useful skills/stat items, then leave
     LEAVE = "leave"              # screens we just exit: a lone "Salir"
     FORTUNE_TELLER = "fortune_teller"  # "Adivino": 100/70/40% balls paid with orbs; tap = its back arrow
     CONTINUE = "continue"        # screen whose only action is one button (see labels.CONTINUE_BUTTONS)
@@ -263,7 +262,7 @@ def _counter(texts: list[Text], prefix: L.Label) -> int | None:
     """Value N of a "<prefix> N / M" text, e.g. the fight round or the dice duel score."""
     for t in texts:
         m = _COUNTER_RE.match(t.norm)
-        if m and m.group(1).strip() in prefix.variants:
+        if m and m.group(1).strip(" :") in prefix.variants:
             return int(m.group(2))
     return None
 
@@ -284,7 +283,7 @@ def dice_auto(img: np.ndarray) -> bool:
     return float(((g > 150) & (r > 120) & (b < 90) & (g > r)).mean()) > config.DICE_GREEN_MIN_FRACTION
 
 
-_SPEED_RE = re.compile(r"x\s*([12])$")
+_SPEED_RE = re.compile(r"x\s*([124])$")
 
 
 def game_speed(texts: list[Text]) -> int | None:
@@ -322,6 +321,37 @@ def _option_enabled(img: np.ndarray, label: Text) -> bool:
     x, y = label.center[0], label.center[1] + config.EVENT_ICON_BELOW_LABEL
     roi = cv2.cvtColor(img[y - 120:y + 120, x - 120:x + 120], cv2.COLOR_BGR2HSV)
     return roi[..., 1].mean() > config.EVENT_DISABLED_MAX_SATURATION
+
+
+_HP_RATIO = re.compile(r"^(\d+(?:[.,]\d+)?\s*[kmb]?)\s*/\s*(\d+(?:[.,]\d+)?\s*[kmb]?)$", re.I)
+
+
+def health_fraction(texts: list[Text]) -> float | None:
+    """Read only the HP bar's current/max values. Unknown HP never implies low HP."""
+    from roguebot.mode_screens import parse_power
+    x1, y1, x2, y2 = config.HEALTH_REGION
+    parts = sorted((t for t in texts if x1 <= t.center[0] <= x2 and y1 <= t.center[1] <= y2),
+                   key=lambda t: t.x1)
+    candidates = [t.norm for t in parts]
+    for i, left in enumerate(parts):
+        joined = left.norm
+        for right in parts[i + 1:i + 3]:
+            if (right.x1 - left.x2 > 65 or right.x1 < left.x2 - 20
+                    or abs(right.center[1] - left.center[1]) > 20):
+                break
+            # A slash immediately after a unit is sometimes read as 1, I or |.
+            # Require the following, aligned maximum; two bare numbers aren't a ratio.
+            joined = re.sub(r"([kmb])\s*[1il|]$", r"\1/", joined)
+            joined += right.norm
+            candidates.append(joined)
+            left = right
+    for candidate in candidates:
+        match = _HP_RATIO.fullmatch(candidate)
+        if match:
+            current, maximum = (parse_power(part) for part in match.groups())
+            if current is not None and maximum is not None and maximum > 0 and 0 <= current <= maximum:
+                return current / maximum
+    return None
 
 
 @dataclass(frozen=True)
@@ -536,10 +566,13 @@ _USES_RE = re.compile(r"^\((\d+)\)$")
 
 
 def skill_reroll(texts: list[Text]) -> Text | None:
-    """The skill pick's reroll button, if it has uses left ("Reroll" with "(1)" below)."""
+    """The reroll button with a positive use count in its label or immediately below it."""
     button = find(texts, L.SKILL_REROLL)
     if not button:
         return None
+    inline = re.search(r"\((\d+)\)$", button.norm)
+    if inline:
+        return button if int(inline[1]) > 0 else None
     uses = next((int(m.group(1)) for t in _below(button, texts) if (m := _USES_RE.match(t.norm))), 0)
     return button if uses > 0 else None
 
@@ -636,19 +669,3 @@ def parse_fortune_teller(texts: list[Text]) -> FortuneTeller | None:
     balls = {int(m.group(1)): (t.center[0], t.center[1] + config.FORTUNE_BUTTON_BELOW_TAG)
              for t in texts if (m := _CHANCE_RE.match(t.norm))}
     return FortuneTeller(orbs, balls)
-
-
-_HP_RATIO = re.compile(r"^(\d+(?:[.,]\d+)?\s*[kmb]?)\s*/\s*(\d+(?:[.,]\d+)?\s*[kmb]?)$", re.I)
-
-def health_fraction(texts: list[Text]) -> float | None:
-    """Read a complete ratio from the HP bar; unreadable values stay unknown."""
-    from roguebot.mode_screens import parse_power
-    x1, y1, x2, y2 = config.HEALTH_REGION
-    for text in texts:
-        if x1 <= text.center[0] <= x2 and y1 <= text.center[1] <= y2:
-            match = _HP_RATIO.fullmatch(text.norm)
-            if match:
-                current, maximum = (parse_power(part) for part in match.groups())
-                if current is not None and maximum is not None and maximum > 0 and 0 <= current <= maximum:
-                    return current / maximum
-    return None

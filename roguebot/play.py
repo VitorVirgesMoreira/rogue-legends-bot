@@ -13,16 +13,17 @@ from pathlib import Path
 import cv2
 
 from roguebot import config, labels
-from roguebot.build import Build, BuildState, PendingSkill, choose, focus, ranked, shop_order
+from roguebot import decision_journal
+from roguebot.build import Build, BuildState, PendingSkill, choose, focus, ranked
 from roguebot.device import Device, ViewportUnavailable
 from roguebot.decisions import CardFlipError, CardFlips, DecisionGuard, FightSkip, GUARDED
 from roguebot.modifiers import parse_modifiers
 from roguebot.observation import Observation, StatusPublisher, describe
 from roguebot.screens import (LevelScreen, LevelState, SkillCard, classify_level_screen, game_speed,
-                              health_fraction, parse_event_menu, parse_fortune_teller, parse_shop, parse_skill_cards, skill_reroll)
+                              health_fraction, parse_event_menu, parse_fortune_teller, parse_skill_cards, skill_reroll)
+from roguebot.shopping import Shopper
 from roguebot.skills import Catalog, Skill
 from roguebot.vision import Ocr, find, matches
-from roguebot.shopping import Shopper
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +121,16 @@ class Player:
                 time.sleep(config.POLL_INTERVAL)
                 continue
             state = classify_level_screen(img, texts)
+            hp = health_fraction(texts)
+            if (hp is None and isinstance(self.ocr, Ocr)
+                    and state.kind in (LevelScreen.EVENT, LevelScreen.SHOP, LevelScreen.SKILL_PICK)):
+                retry = self.ocr.read(img, config.HEALTH_REGION)
+                hp = health_fraction(retry)
+                if hp is not None:
+                    x1, y1, x2, y2 = config.HEALTH_REGION
+                    texts = [t for t in texts if not (x1 <= t.center[0] <= x2 and y1 <= t.center[1] <= y2)] + retry
+                    state = classify_level_screen(img, texts)
+            self._state.context.observe(hp, state.kind.value)
             if state.kind in (LevelScreen.BOARD_READY, LevelScreen.AUTO_PLAY):
                 skip.reset()
                 self._state.run_progress.observe(texts)
@@ -264,6 +275,9 @@ class Player:
         if signature == self._last_event_trace:
             return
         self._last_event_trace = signature
+        decision_journal.record(self._state, "event", "tap" if point else "wait", title=menu.title.text,
+            offers=[{"option": t.text, "description": menu.descriptions[t]} for t in menu.enabled],
+            point=point, reason=reason)
         try:
             folder = EVENT_DEBUG_DIR
             folder.mkdir(parents=True, exist_ok=True)
@@ -324,6 +338,7 @@ class Player:
             if not cards or self._skill_offer(cards) == pending.offer:
                 return
         self._state.take(pending.skill, self.build)
+        decision_journal.record(self._state, "skill_pick", "confirmed", selected=pending.skill.name)
         self._state.pending_skill = None
 
     def _pick_skill(self, texts) -> tuple[int, int] | None:
@@ -340,6 +355,10 @@ class Player:
             i = pending.index
         else:
             i = choose(skills, self.build, self._state, can_reroll=reroll is not None and not self._rerolled)
+        decision_journal.record(self._state, "skill_pick", "reroll" if i is None else "pick",
+            offers=[{"card": asdict(s), "evaluation": self._state.explanation(s, self.build)} for s in skills],
+            selected=i, ranking=ranked(skills, self.build, self._state),
+            can_reroll=reroll is not None and not self._rerolled, retry=pending is not None and pending.offer == offer)
         if i is None:
             log.info("No wanted skill in %s: rerolling", [s.name for s in skills])
             self._rerolled = True

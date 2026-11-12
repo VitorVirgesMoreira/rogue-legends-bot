@@ -1,6 +1,8 @@
 """Screen recognition against real screenshots in tests/fixtures (no device needed)."""
 
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
@@ -42,6 +44,13 @@ def test_normalize():
     assert normalize("Desafío de Estrellas") == "desafio de estrellas"
 
 
+def test_skill_pick_tolerates_joined_words_in_the_prompt(ocr):
+    img, texts = load(ocr, "en_level_skill_levelup.png")
+    prompt = next(t for t in texts if "select a skill" in t.norm)
+    texts[texts.index(prompt)] = replace(prompt, text="Select aSkill to learn!")
+    assert classify_level_screen(img, texts).kind is LevelScreen.SKILL_PICK
+
+
 @pytest.mark.parametrize("name, mode, title", [
     ("lobby_normal.png", Mode.NORMAL, "13. Bosque Embrujado II"),
     ("lobby_elite.png", Mode.ELITE, "2. Las Tierras Altas (Élite) I"),
@@ -80,7 +89,7 @@ def test_star_list(ocr, name, playable, locked):
     ("level_board_auto.png", LevelScreen.AUTO_PLAY, None),          # green dice "Toca para Detener" right after the hold
     ("level_board_auto_rolling.png", LevelScreen.AUTO_PLAY, None),  # auto-play mid-level: never tap (it would stop it)
     ("level_event_cart.png", LevelScreen.EVENT, (923, 2030)),    # "Salir" option
-    ("level_event_rest.png", LevelScreen.EVENT, (510, 2033)),    # no "Salir": leftmost option
+    ("level_event_rest.png", LevelScreen.EVENT, (924, 2033)),    # HP >25%: train, not heal
     ("en_board_dice_unknown.png", LevelScreen.BOARD_READY, (720, 2150)),  # dark teal board: not a footer
     ("en_level_event_disabled_option.png", LevelScreen.EVENT, (922, 2033)),  # "Read" greyed after failing: "Walk Away"
     ("level_shop.png", LevelScreen.SHOP, (427, 2417)),
@@ -388,6 +397,25 @@ def test_lobby_under_the_album_popup_is_not_the_lobby(ocr):
     assert popup_close(texts)
 
 
+def test_daily_rewards_dialog_is_actionable_and_blocks_lobby_taps(ocr):
+    from roguebot.mode_screens import daily_claim
+    from roguebot.navigation import Navigator
+
+    img, texts = load(ocr, "en_daily_rewards.png")
+    button = daily_claim(texts)
+    assert button is not None and button.text == "Claim Rewards"
+    assert daily_claim([t for t in texts if t != button]) is None  # never tap Enter Code
+    assert parse_lobby(texts) is None
+
+    taps = []
+    lobby_img, lobby_texts = load(ocr, "en_lobby_normal.png")
+    frames = iter([(img, texts), (lobby_img, lobby_texts)])
+    nav = Navigator(SimpleNamespace(tap=lambda x, y: taps.append((x, y))), ocr)
+    nav._capture = lambda: next(frames)
+    assert nav.go_to_lobby().mode is Mode.NORMAL
+    assert taps == [(720, 1661)]
+
+
 def test_tutorial_hand_points_at_the_new_album_button(ocr):
     from roguebot.screens import tutorial_hand
     img, texts = load(ocr, "lobby_tutorial_hand.png")  # the game ignores every other tap meanwhile
@@ -431,12 +459,12 @@ def test_resume_adventure_prompt_spanish(ocr):
     assert parse_lobby(texts) is None  # the lobby under the dialog is not usable
 
 
-def test_greyed_event_option_is_skipped_even_without_a_leave_option(ocr):
-    """Forbidden Knowledge: after a failed "Read" the option is greyed and taps do nothing."""
+def test_greyed_event_option_without_a_known_exit_waits_for_another_read(ocr):
+    """A disabled Read and unknown Run do not authorize tapping either option."""
     img, texts = load(ocr, "en_level_event_disabled_option.png")
     texts = [t for t in texts if t.text != "Walk Away"] + [Text("Run", 880, 1770, 960, 1815)]  # not a leave label
     state = classify_level_screen(img, texts)
-    assert state.kind is LevelScreen.EVENT and abs(state.tap[0] - 920) < 10  # the enabled one, not "Read"
+    assert state.kind is LevelScreen.UNKNOWN and state.tap is None
 
 
 def test_game_update_required(ocr):

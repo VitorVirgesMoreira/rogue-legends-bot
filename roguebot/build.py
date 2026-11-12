@@ -8,9 +8,9 @@ import uuid
 from roguebot.skills import DAMAGE, DAMAGE_TYPES, MAGIC, MAGIC_TYPES, PHYSICAL, RARITY_NAMES, SUPPORT, Skill, skill_key
 from roguebot.modifiers import Modifier, ModifierRules
 from roguebot.run_progress import RunProgress
-from roguebot.events import EventChoices
 from roguebot.vision import normalize
 from roguebot.combat_context import CombatContext, Loadout
+from roguebot.events import EventChoices
 from roguebot import build_rules
 from roguebot.skill_data import base_name, rule_for
 
@@ -59,10 +59,10 @@ class BuildState:
     modifiers: tuple[Modifier, ...] | None = None
     rules: ModifierRules = field(default_factory=ModifierRules)
     run_progress: RunProgress = field(default_factory=RunProgress)
-    event_choices: EventChoices = field(default_factory=EventChoices)
     premium_shop_price: int = 0  # remember the price to save for across earlier shops/recovery
     context: CombatContext = field(default_factory=CombatContext)
     strategy: str = "balanced"
+    event_choices: EventChoices = field(default_factory=EventChoices)
     run_id: str = field(default_factory=lambda: uuid.uuid4().hex)
 
     def configure(self, build: Build, mode: str | None = None) -> None:
@@ -114,7 +114,12 @@ def focus(build: Build, state: BuildState) -> str | None:
         return build.profile
     if state.focus is not None:
         return state.focus
-    return None
+    weapon = skill_key(build.loadout.weapon)
+    element = {"emberstaff": "fire", "infernospire": "fire", "stormstaff": "lightning",
+               "tempestwrath": "lightning", "glacialhammer": "ice", "unforgivingfrost": "ice",
+               "katana": "shuriken", "blossomwhisper": "shuriken", "plagueblade": "venom",
+               "blightmaker": "venom"}.get(weapon)
+    return element if element and (element in MAGIC_TYPES) == (build.nature == MAGIC) else None
 
 
 def _rarity(skill: Skill) -> int:
@@ -220,6 +225,10 @@ def _score(skill: Skill, build: Build, state: BuildState) -> tuple | None:
         return None
     established = state.type_picks.get(primary, 0) >= 2
     owned = family(skill) in state.owned
+    if (state.context.mode == "campaign" and state.context.survival_pressure and skill.role == SUPPORT
+            and skill.damage_type in (None, primary)):
+        return (-2.5, state.rules.support_quality(skill.name, skill.description),
+                -build_rules.utility(skill, state, primary), _rarity(skill))
     if skill.role == SUPPORT and skill.damage_type in (None, primary):
         priority = state.rules.support_priority(skill.name, skill.description)
         # Establish damage first; one counter family is enough for each threat. Normal
@@ -241,6 +250,14 @@ def _score(skill: Skill, build: Build, state: BuildState) -> tuple | None:
         if not owned and (_critical(skill) or skill.damage_type is None and re.search(r"\b(?:atk|atq)\b", _text(skill))):
             adjustment -= 1
     value = build_rules.utility(skill, state, primary)
+    if state.context.mode == "campaign" and primary is not None:
+        # Keep a secondary bounded; compare all compatible main-line synergies
+        # before using family familiarity or rarity as a tie breaker.
+        if (build.profile == BURN and needs_critical_pick(state, primary)
+                and _critical(skill)):
+            value += 2.
+        secondary = int(skill.damage_type is not None and skill.damage_type != primary)
+        return (adjustment, secondary, -value, *base[:-1], base[-1])
     return (adjustment, *base[:-1], -value, base[-1])
 
 
@@ -281,6 +298,11 @@ def fallback(skills: list[Skill], build: Build | None = None, state: BuildState 
 def choose(skills: list[Skill], build: Build, state: BuildState, can_reroll: bool) -> int | None:
     wanted = ranked(skills, build, state)
     if wanted:
+        best = skills[wanted[0]]
+        if (can_reroll and best.reference is not None and state.context.mode == "campaign" and focus(build, state) is not None
+                and not state.context.survival_pressure and best.role == DAMAGE
+                and build_rules.utility(best, state, focus(build, state)) < .75):
+            return None
         return wanted[0]
     if can_reroll or not skills:
         return None

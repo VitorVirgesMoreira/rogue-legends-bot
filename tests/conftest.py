@@ -71,8 +71,9 @@ def ocr(request) -> Ocr:
 
 @pytest.fixture(autouse=True)
 def isolated_event_captures(monkeypatch, tmp_path):
-    """Keep replay evidence isolated from user data."""
+    """Replay tests must never add to or rotate the user's real event screenshots."""
     monkeypatch.setattr("roguebot.play.EVENT_DEBUG_DIR", tmp_path / "events")
+    monkeypatch.setattr("roguebot.decision_journal.DECISION_DIR", tmp_path / "decisions")
     monkeypatch.setattr("roguebot.metrics.RUNS_PATH", tmp_path / "history.json")
     monkeypatch.setattr("roguebot.account_state.SCAN_PATH", tmp_path / "account_scan.json")
     monkeypatch.setattr("roguebot.account_state.SCAN_HISTORY_PATH", tmp_path / "account_scan_history.json")

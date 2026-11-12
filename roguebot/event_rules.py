@@ -93,6 +93,14 @@ def choose_event(title: Text, enabled: tuple[Text, ...], descriptions: dict[Text
     healing = next((t for t in enabled if effects.get(t) == "heal"), None)
     if healing and hp is not None and hp <= config.HEAL_MAX_FRACTION:
         return EventOption(healing, "decision_heal")
+    if healing and kind == "rest" and hp is not None:
+        amount = re.search(r"(\d+(?:[.,]\d+)?)\s*%", descriptions[healing])
+        restored = float(amount[1].replace(",", ".")) / 100 if amount else None
+        # A substantial free refill below 60% beats an unknown training upgrade.
+        # Recent danger also warrants a smaller refill; healthy runs keep training.
+        if (restored is not None and min(1. - hp, restored) >= .25 and hp <= .6
+                or context is not None and context.survival_pressure):
+            return EventOption(healing, "decision_heal")
     for effect in ("damage", "upgrade", "max_hp"):
         option = next((t for t in enabled if effects.get(t) == effect), None)
         if option:

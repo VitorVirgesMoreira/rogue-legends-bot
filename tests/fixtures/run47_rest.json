@@ -1,0 +1,17 @@
+{
+  "source": "Excerpt of event_20261107_124031_927581.json inspected during the run analysis on 2026-11-07; original debug files are rotated",
+  "title": "A Moment To Rest",
+  "hp": null,
+  "texts": [
+    {"text": "2,5m1", "x1": 430, "y1": 51, "x2": 591, "y2": 109},
+    {"text": "4,3m", "x1": 579, "y1": 51, "x2": 699, "y2": 105},
+    {"text": "A Moment To Rest", "x1": 362, "y1": 1353, "x2": 1078, "y2": 1447},
+    {"text": "Rest", "x1": 435, "y1": 1758, "x2": 587, "y2": 1827},
+    {"text": "Train", "x1": 839, "y1": 1757, "x2": 1006, "y2": 1827},
+    {"text": "Restore 45%", "x1": 344, "y1": 2241, "x2": 680, "y2": 2298},
+    {"text": "Improve 1", "x1": 784, "y1": 2242, "x2": 1060, "y2": 2308},
+    {"text": "HP", "x1": 464, "y1": 2301, "x2": 559, "y2": 2367},
+    {"text": "Existing", "x1": 808, "y1": 2298, "x2": 1042, "y2": 2376},
+    {"text": "Skill", "x1": 860, "y1": 2365, "x2": 991, "y2": 2429}
+  ]
+}

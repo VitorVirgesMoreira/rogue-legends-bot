@@ -5,6 +5,7 @@ import logging
 from typing import Callable
 
 from roguebot import config
+from roguebot import decision_journal
 from roguebot.build import Build, BuildState, shop_order, shop_utility_order
 from roguebot import build_rules
 from roguebot.build import focus
@@ -117,7 +118,7 @@ class Shopper:
         visit.observe_stock(shop.items)
         self.state.context.hp = shop.hp
         if (not visit.healed and shop.hp is not None and
-                (shop.hp <= config.HEAL_MAX_FRACTION)):
+                (shop.hp <= config.HEAL_MAX_FRACTION or self.state.context.survival_pressure)):
             heal = next((item for item in shop.items if item.kind == "heal" and 0 < item.cost <= balance), None)
             if heal:
                 return heal
@@ -137,7 +138,11 @@ class Shopper:
                 and (roll_cost == 0 or shop.cards and balance - roll_cost >= min(base_price, skill_budget)))
         wanted = shop_order(skills, self.build, self.state, can_reroll=True, prices=prices)
         if wanted:
-            return affordable[wanted[0]]
+            best = skills[wanted[0]]
+            if (not can_search or self.state.context.mode != "campaign" or self.state.context.survival_pressure
+                    or self.state.priority_enemy_counter(best) or best.reference is None
+                    or build_rules.utility(best, self.state, focus(self.build, self.state)) >= .75):
+                return affordable[wanted[0]]
         if can_search:
             return Reroll(shop.reroll, roll_cost)
 
@@ -164,6 +169,11 @@ class Shopper:
             reserve = self._reserve(shop, final)
             action = self._choose(shop, visit, reserve)
             action_name = "leave" if action is None else "reroll" if isinstance(action, Reroll) else "buy"
+            decision_journal.record(self.state, "shop", action_name,
+                offers=[{"card": asdict(self.skill_lookup(c)), "cost": c.cost, "sold": c.sold,
+                         "evaluation": self.state.explanation(self.skill_lookup(c), self.build)} for c in shop.cards],
+                money=shop.money, reserve=reserve, reroll_cost=shop.reroll_cost,
+                stock=[asdict(item) for item in shop.items], planned=asdict(action) if action else None)
             if action is None:
                 log.info("Shop: leaving with %d coins (reserve %d), no useful purchase within budget",
                          shop.money, reserve)
@@ -184,5 +194,6 @@ class Shopper:
             visit.confirm(action)
             if isinstance(action, SkillPurchase):
                 self.state.take(action.skill, self.build)
+            decision_journal.record(self.state, "shop", "confirmed", money=after.money, completed=asdict(action))
             shop = after
         log.warning("Shop: action limit reached for this visit")
