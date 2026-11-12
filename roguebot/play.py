@@ -22,13 +22,13 @@ from roguebot.screens import (LevelScreen, LevelState, SkillCard, classify_level
                               health_fraction, parse_event_menu, parse_fortune_teller, parse_shop, parse_skill_cards, skill_reroll)
 from roguebot.skills import Catalog, Skill
 from roguebot.vision import Ocr, find, matches
+from roguebot.shopping import Shopper
 
 log = logging.getLogger(__name__)
 
 DEBUG_DIR = Path("debug")
 EVENT_DEBUG_DIR = DEBUG_DIR / "events"
 MAX_EVENT_CAPTURES = 40
-MAX_SHOP_STEPS = 8
 
 
 class PlayError(Exception):
@@ -355,29 +355,8 @@ class Player:
         return config.SCREEN_SIZE[0] // 2, cards[i].tag.center[1] + config.SKILL_TAP_BELOW_RARITY
 
     def _shop(self, texts) -> None:
-        """Free reroll if nothing is wanted, then buy in the build's order whatever the coins allow."""
-        rerolled, tapped = False, set()
-        for _ in range(MAX_SHOP_STEPS):
-            shop = parse_shop(texts)
-            if shop is None or shop.money is None:
-                return
-            cards = [c for c in shop.cards if not c.sold and c.cost is not None and c.name not in tapped]
-            skills = [self._skill(c) for c in cards]
-            order = shop_order(skills, self.build, self._state,
-                               can_reroll=shop.free_reroll is not None and not rerolled)
-            if order is None:
-                log.info("Shop: no wanted skill in %s, free reroll", [s.name for s in skills])
-                self.device.tap(*shop.free_reroll.center)
-                rerolled = True
-            else:
-                i = next((i for i in order if cards[i].cost <= shop.money), None)
-                if i is None:
-                    return
-                log.info("Shop: buying %s for %d (coins %d)", skills[i].name, cards[i].cost, shop.money)
-                self.device.tap(*cards[i].price.center)
-                tapped.add(cards[i].name)
-                self._state.take(skills[i])
-            texts = self.ocr.read(self.device.screenshot())
+        """Use current run progress to reserve coins or finish shopping before the last boss."""
+        Shopper(self.device, self.ocr, self.build, self._state, self._skill).buy(texts)
 
     def _fortune(self, texts) -> tuple[int, int] | None:
         """Fortune Teller: buy the balls in FORTUNE_BUYS order while the orbs allow, then the back arrow.

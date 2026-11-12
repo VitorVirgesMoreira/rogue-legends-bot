@@ -552,11 +552,54 @@ def parse_money(texts: list[Text]) -> int | None:
 
 
 @dataclass(frozen=True)
+class ShopItem:
+    kind: str                   # atk, def, max_hp or heal
+    price: Text                 # coin price button
+    remaining: int | None = None
+
+    @property
+    def cost(self) -> int:
+        return int(self.price.norm)
+
+
+def _shop_items(texts: list[Text]) -> tuple[ShopItem, ...]:
+    items = []
+    for xs, healing in ((config.SHOP_STAT_X, False), (config.SHOP_HEAL_X, True)):
+        column = [t for t in texts if _in_range(t.center[0], xs)]
+        label = next((t for t in column if _in_range(t.center[1], config.SHOP_ITEM_LABEL_Y)), None)
+        price = next((t for t in column if _in_range(t.center[1], config.SHOP_ITEM_PRICE_Y) and t.norm.isdigit()), None)
+        if label is None or price is None:
+            continue
+        kind = None
+        if healing:
+            if re.search(r"\b(?:heal|curar|cura)\b", label.norm):
+                kind = "heal"
+        elif re.search(r"\b(?:atk|atq)\b", label.norm):
+            kind = "atk"
+        elif re.search(r"\bdef\b", label.norm):
+            kind = "def"
+        elif re.search(r"\b(?:max\.?\s*(?:hp|pv)|(?:hp|pv)\s*max\.?|vida maxima)\b", label.norm):
+            kind = "max_hp"
+        if kind is None:
+            continue
+        remaining = next((int(m.group(1)) for t in column
+                          if _in_range(t.center[1], config.SHOP_ITEM_USES_Y)
+                          and (m := re.fullmatch(r"(\d+)\s*/\s*(\d+)", t.norm))
+                          and 0 <= int(m.group(1)) <= int(m.group(2))), None)
+        items.append(ShopItem(kind, price, remaining))
+    return tuple(items)
+
+
+@dataclass(frozen=True)
 class Shop:
     money: int | None
     cards: list[SkillCard]
     free_reroll: Text | None     # the reroll button while it says FREE (afterwards it costs coins)
     exit: Text
+    items: tuple[ShopItem, ...] = ()
+    reroll: Text | None = None
+    reroll_cost: int | None = None
+    hp: float | None = None
 
 
 def parse_shop(texts: list[Text]) -> Shop | None:
@@ -564,8 +607,14 @@ def parse_shop(texts: list[Text]) -> Shop | None:
     reroll = find(texts, L.SHOP_REROLL)
     if not (leave and reroll) or find(texts, L.BLACK_MARKET):
         return None
-    free = reroll if reroll and any(matches(t, L.FREE, exact=True) for t in _below(reroll, texts)) else None
-    return Shop(parse_money(texts), parse_skill_cards(texts), free, leave)
+    below = _below(reroll, texts)
+    prices = {0 if matches(t, L.FREE, exact=True) else int(t.norm)
+              for t in below if matches(t, L.FREE, exact=True) or t.norm.isdigit()}
+    cost = prices.pop() if len(prices) == 1 else None
+    if any(PREMIUM_CURRENCY.search(t.norm) for t in below):
+        cost = None
+    free = reroll if cost == 0 else None
+    return Shop(parse_money(texts), parse_skill_cards(texts), free, leave, _shop_items(texts), reroll, cost, health_fraction(texts))
 
 
 @dataclass(frozen=True)

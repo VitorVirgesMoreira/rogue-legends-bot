@@ -45,6 +45,12 @@ def test_skill_cards(ocr, name, cards, reroll, money):
     assert parse_money(texts) == money
 
 
+@pytest.mark.parametrize("uses", [0, 1])
+def test_skill_reroll_reads_the_use_count_on_the_same_ocr_line(uses):
+    button = Text(f"Reroll ({uses})", 580, 2110, 860, 2190)
+    assert skill_reroll([button]) == (button if uses else None)
+
+
 @pytest.mark.parametrize("name, money, cards, free_reroll", [
     ("level_shop.png", 154, [("Golpe Venenoso", 48, False), ("Aumento de Tasa de Contraataque", 95, False),
                              ("Descarga Definitiva", 95, False)], True),
@@ -84,12 +90,17 @@ class Frames:
         self.frames = iter(frames)
 
     def read(self, img):
-        return next(self.frames)
+        self.last = next(self.frames, getattr(self, "last", None))
+        assert self.last is not None, "No replay frame was supplied for this read"
+        return self.last
 
 
-def player(tmp_path, build, frames=()):
+def player(tmp_path, build, frames=(), *, final_shop=True):
     labels.set_language("en")
-    return Player(TapLog(), Frames(frames), build, Catalog(tmp_path / "skills.json"))
+    p = Player(TapLog(), Frames(frames), build, Catalog(tmp_path / "skills.json"))
+    if final_shop:
+        p._state.run_progress.rolls, p._state.run_progress.total = 29, 30
+    return p
 
 
 def card(rarity, name, description, y, price=None):
@@ -109,6 +120,10 @@ def test_player_picks_the_build_skill_and_records_it(tmp_path):
     screen = [PROMPT, *card("Common", "Sneaky Poison", "When you dodge, apply Poison.", 928),
               *card("Common", "Fire Weapon", "Attacks deal additional fire damage.", 1236), *REROLL]
     assert p._pick_skill(screen) == (720, 1236 + config.SKILL_TAP_BELOW_RARITY)
+    assert p._state.taken == []  # planning a tap does not prove that it landed
+    p._state.pending_skill = p._planned_skill
+    from roguebot.screens import LevelScreen
+    p._confirm_skill(LevelScreen.BOARD_READY, [])
     assert p._state.taken == ["Fire Weapon"]
     assert set(p.catalog.skills) == {"sneakypoison", "fireweapon"}  # both new skills saved
 
@@ -120,10 +135,10 @@ def test_player_rerolls_once_when_nothing_fits(tmp_path):
     assert p._pick_skill(shield_only) == (720, 928 + config.SKILL_TAP_BELOW_RARITY)  # rerolled: take it anyway
 
 
-def shop_screen(money, cards, free=True):
+def shop_screen(money, cards, free=True, *, reroll_cost=20):
     texts = [Text("SHOP", 640, 340, 800, 390), Text(str(money), 140, 155, 200, 190),
              Text("Reroll", 780, 2365, 930, 2405), Text("Exit", 380, 2395, 470, 2440),
-             Text("FREE" if free else "10", 840, 2435, 930, 2475)]
+             Text("FREE" if free else str(reroll_cost), 840, 2435, 930, 2475)]
     for i, (rarity, name, description, price, sold) in enumerate(cards):
         y = 1086 + 334 * i
         texts += card(rarity, name, description, y, price)
@@ -141,12 +156,11 @@ def price_at(i):
     return 1165, 1086 + 334 * i + 200
 
 
-def test_shop_buys_wanted_first_then_what_coins_allow(tmp_path):
+def test_shop_buys_the_build_skill_then_useful_neutral_support(tmp_path):
     frames = [shop_screen(155, [(*RECOVERY, False), (*FIRE_WAVE, True), (*EXECUTIONER, False)], free=False),
               shop_screen(107, [(*RECOVERY, True), (*FIRE_WAVE, True), (*EXECUTIONER, False)], free=False)]
     p = player(tmp_path, Build("magic"), frames)
     p._shop(shop_screen(250, [(*RECOVERY, False), (*FIRE_WAVE, False), (*EXECUTIONER, False)]))
-    # Fire Wave (wanted) first; then 155 coins: Executioner (190) is too expensive, Recovery (48) fits.
     assert p.device.taps == [price_at(1), price_at(0)]
     assert p._state.taken == ["Fire Wave", "Recovery"]
 
@@ -180,7 +194,7 @@ def test_x2_rewards_button_that_stays_is_given_up_for_continue(monkeypatch):
     from roguebot.vision import Text
     monkeypatch.setattr(play.time, "sleep", lambda s: None)
     end = [Text("Continuar", 600, 2360, 840, 2400), Text("x2 Recompensas", 1000, 2200, 1300, 2240)]
-    states = iter([LevelState(LevelScreen.DOUBLE_REWARD, (1150, 2220))] * 3 + [LevelState(LevelScreen.VICTORY, (720, 2380))])
+    states = iter([LevelState(LevelScreen.DOUBLE_REWARD, (1150, 2220))] * 4 + [LevelState(LevelScreen.VICTORY, (720, 2380))] * 2)
     monkeypatch.setattr(play, "classify_level_screen", lambda img, texts: next(states))
     taps = []
 
