@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased (2026-11-12, account skill tree)
+- Opens an overly close skill-tree zoom with two simultaneous touch pointers, then traverses overlapping rows across the left and right branches and upward, with pan-limit detection and bounded coverage.
+- Skips the small ten-level HP/ATK/DEF squares and inspects learned skill-unlock or skill-upgrade nodes instead. Removes the old six-node/four-page limits and scales icon tap offsets with zoom.
+- Old vertical-only tree caches are refreshed without repeating the other account sections. Checkpoints identify the actual view before reusing node coordinates; confirmed skills survive partial scans and cancellation.
+- Bundles a small Android input helper and its build source. Gesture mapping, read-only helper reuse, cancellation, two-dimensional coverage and node filtering have regression tests; live emulator verification remains pending.
+
+## Unreleased (2026-11-12, desktop build decisions)
+- Reassembles aligned HP fragments, including the level-47 `2,5m1` / `4,3m` capture, and retries the HP region before important choices when full-screen OCR misses it.
+- Favors substantial free recovery below 60% HP at campfires; recent combat losses and observed revives can bring protection and shop healing forward without waiting for the support interval.
+- Compares compatible campaign skills by marginal utility, known trigger rates, reachable unlocks and version-specific upgrade increments before family familiarity. Explicit elemental profiles and engine-breaking tradeoff checks remain enforced.
+- Uses a bounded subset of independently verified 0.631 numeric facts; unknown values stay unknown. Upgrading one family no longer claims the distinct-family unlocks of another elemental skill.
+- Rerolls very weak compatible offers when possible, reserves for useful shop targets, and releases the reserve when observed survival risk requires spending.
+- Saves bounded local decision records with all alternatives, scores, costs, stock and separate action confirmations. Run history links the records by run ID and separates policy versions.
+- Adds regression coverage from the level-47 OCR evidence. This update targets the desktop source; the Android implementation is separate.
+
+## Unreleased (2026-11-03, emulator)
+- Dungeon Dive depth transitions wait up to 20 seconds through dark/uncertain viewport frames without restarting the game or losing build/autoplay state. Persistent viewport failures still trigger bounded recovery.
+- Event choices can read Forbidden Knowledge, steal from the Abandoned Spoils Cart and sign the Devil's pact. Altar of Greed uses spare tokens, and Test of Might checks progress past the second boss, health and attack.
+- Automatic farming uses the selected mode's chapter and waits through brief dark transitions. Skill selection tolerates OCR variations in names, and the Cursed Fountain uses its Pass option.
+- Automatic account inspection from the settings window and before Start: equipment, stats, hero/companions, equipped pets, identified deployment powers, resources and version. Local evidence, account-scan history, cancellation, per-item resume and a ten-minute cache prevent repeated full inspections.
+- Guide-backed skill families, versions, source/trigger rules, tradeoffs and mode-aware choices; separate fire-critical and burn profiles.
+- Account equipment/strategy settings, local combat history, opt-in automatic farming and read-only progression recommendations with known costs.
+- Portuguese in-game recognition with real menu/Codex captures; completed Party Expedition detection, scheduled routine maintenance and guarded free event claims.
+- Chaos Realm and Guild Conquest inspection plus tested path/target policies. Automatic combat stays disabled pending active-screen captures; Chaos is locked on the validation account and Conquest is between seasons.
+- Explicit event refusal/exit rules; unknown options wait for another read instead of choosing the left side.
+- Two compatible screen reads before event, skill, shop and result actions; bounded waits for stale offers and treasure-card flips.
+- Image fallback for five captured event titles, with readable options still required.
+- Live screen/action/reason in the desktop window, plus a continuous read-only preview for an already running emulator.
+
 ## 1.9.0 (2026-10-28)
 - Uses far less CPU: about 1.5 cores on average while running instead of 2.6–3.8 (−60% to −65% CPU per screen read), at the same speed in levels and ~35% faster when going back to the lobby and in the full routine. The text reader no longer keeps the processor busy while it waits, uses at most 4 cores, and no longer runs a step that turned short texts upside down, so it now reads texts like "x1", "x5", "Modos" or "3,3m" correctly. Finding the ✕, back arrow and tutorial hand on screen is ~15 times faster.
 - Uses far less memory: ~120 MB committed instead of ~600 MB. Most of it was reserved at startup by a math library the bot doesn't need, once per processor core.
