@@ -52,7 +52,6 @@ class RunState:
     party: PartyProgress = field(default_factory=PartyProgress)
     build: BuildState | None = None
     routine_done: bool = False
-    no_stars: bool = False
     patrol_next: float = 0.0
     patrol_fails: int = 0
     resumed: int = 0
@@ -85,6 +84,7 @@ def _start_level(nav: Navigator, request: RunRequest) -> int | None:
     if request.last_beaten:
         return nav.start_last_beaten(request.mode)
     if request.level is None:
+        # Keep this dynamic: a victory can unlock a new lobby stage before the next run.
         return nav.start_latest(request.mode)
     nav.start_star_challenge(request.mode, request.level)
     return request.level
@@ -169,7 +169,7 @@ class Runner:
         player = Player(device, self.ocr, state.request.build, self.catalog, state.request.ads,
                         build_state=active_build, inspect_modifiers=state.request.mode is Mode.ELITE)
         result = player.play_level()
-        if active := state.active_level:
+        if state.active_level is not None:
             values = getattr(player, "result_values", (None, {}))
             self._record_level(state, result.value, values)
             state.results.append(result)
@@ -179,10 +179,6 @@ class Runner:
                 state.farm_stopped = state.farm.observe(result is LevelScreen.VICTORY)
                 if state.farm_stopped:
                     log.warning("Farm stopped after repeated defeats on stage 1")
-            elif (result is LevelScreen.VICTORY and request.level is None and not request.last_beaten
-                    and active.level is not None and not state.no_stars):
-                # Winning unlocked the next level; replay this one from the star challenge.
-                state.request = replace(request, level=active.level)
         state.build = None
         return result
 
@@ -315,7 +311,6 @@ class Runner:
                     if request.farm:
                         raise
                     log.warning("%s: playing the last unlocked level instead", e)
-                    state.no_stars = True  # no pinning, no more star list attempts
                     request = state.request = replace(request, level=None, last_beaten=False, pending_stars=False)
                     played = nav.start_latest(request.mode)
                 state.active_level = ActiveLevel(played, getattr(nav, "last_energy_cost", None))

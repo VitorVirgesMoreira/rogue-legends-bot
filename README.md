@@ -39,7 +39,7 @@ Guide-based build rules, account settings, history, automatic farming and progre
   affordable cost). A fixed choice is exact: the bot claims available free energy, then stops or
   waits (Keep running) if that cost is still unaffordable; it never silently substitutes a cheaper run.
   Normal mode remains 5 energy. The level can be:
-  - the last unlocked level;
+  - the last unlocked level, rechecked before every run: wins advance to the newly unlocked stage;
   - the last beaten level;
   - a level that still misses stars (star rewards include diamonds);
   - any beaten level N from Desafío de Estrellas.

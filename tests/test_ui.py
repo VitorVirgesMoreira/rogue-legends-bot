@@ -199,6 +199,24 @@ def test_language_switch_translates_every_widget(app):
         assert widget.cget("text") == TEXTS["es"][key]
 
 
+@pytest.mark.parametrize("states", [("readonly",), ("readonly", "focus"), ("readonly", "focus", "selected")])
+def test_picker_text_remains_readable_with_and_without_focus(app, states):
+    from tkinter import ttk
+
+    style = ttk.Style(app.root)
+
+    def luminance(color):
+        channels = [channel / 65535 for channel in app.root.winfo_rgb(color)]
+        linear = [channel / 12.92 if channel <= .04045 else ((channel + .055) / 1.055) ** 2.4
+                  for channel in channels]
+        return sum(channel * weight for channel, weight in zip(linear, (.2126, .7152, .0722)))
+
+    for foreground, background in (("foreground", "fieldbackground"), ("selectforeground", "selectbackground")):
+        text = luminance(style.lookup("TCombobox", foreground, states))
+        field = luminance(style.lookup("TCombobox", background, states))
+        assert (max(text, field) + .05) / (min(text, field) + .05) >= 4.5
+
+
 def test_status_follows_language(app):
     app._finish(("report", {"report": Report([LevelScreen.VICTORY])}, "green"))
     assert app.status.cget("text") == "Level finished: Victory"

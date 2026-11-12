@@ -31,7 +31,7 @@ def positive_integer(value: str | int) -> int | None:
 class RunRequest:
     mode: Mode
     level: int | None  # None = last unlocked level (lobby INICIO/LISTO)
-    repeat: bool = False  # replay the same level until energy runs out (always, from the UI)
+    repeat: bool = False  # keep playing the selected stage source until energy runs out (always, from the UI)
     full: bool = False    # legacy callers: run all supported routine parts before the levels
     build: Build = Build()  # skill preferences for level skill picks and shops
     last_beaten: bool = False  # the level before the last unlocked one (from Desafío de Estrellas)

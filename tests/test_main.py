@@ -140,7 +140,7 @@ class FakeNav:
         self.energy -= 5
 
 
-def run_with(monkeypatch, nav, results, request):
+def run_with(monkeypatch, nav, results, request, on_result=None):
     class Dev:
         def __init__(self, serial, stop=None, adb=None):
             pass
@@ -150,7 +150,10 @@ def run_with(monkeypatch, nav, results, request):
             pass
 
         def play_level(self):
-            return results.pop(0)
+            result = results.pop(0)
+            if on_result:
+                on_result(result)
+            return result
 
     monkeypatch.setattr(main, "Device", Dev)
     monkeypatch.setattr(main, "Ocr", lambda: object())
@@ -239,11 +242,63 @@ def test_repeat_until_out_of_energy_claims_free_energy_first(monkeypatch):
     assert report.results == [V, D, V] and report.repeat
 
 
-def test_repeat_latest_pins_level_after_victory(monkeypatch):
-    nav = FakeNav(energy=15)
-    run_with(monkeypatch, nav, [D, V, V], RunRequest(Mode.NORMAL, None, repeat=True))
-    # Defeat: still the latest level. Victory unlocks 14, so replay 13 from Desafío de Estrellas.
-    assert nav.started == ["detect", ("latest", 13), ("latest", 13), ("stars", 13)]
+@pytest.mark.parametrize("mode", [Mode.NORMAL, Mode.ELITE])
+def test_repeat_latest_advances_after_victory_and_retries_after_defeat(monkeypatch, mode):
+    nav = FakeNav(energy=20, latest=58)
+
+    def finish(result):
+        if result is V:
+            nav.latest += 1  # the game unlocks the next stage
+
+    report = run_with(monkeypatch, nav, [V, D, V, V], RunRequest(mode, None, repeat=True), finish)
+    assert report.results == [V, D, V, V]
+    assert nav.started == ["detect", ("latest", 58), ("latest", 59), ("latest", 59), ("latest", 60)]
+
+
+@pytest.mark.parametrize("mode", [Mode.NORMAL, Mode.ELITE])
+def test_latest_rechecks_the_unlocked_stage_after_waiting_for_energy(monkeypatch, mode):
+    nav = FakeNav(energy=5, latest=58)
+    waits = []
+
+    def finish(result):
+        nav.latest += 1
+
+    def refill(*args, **kwargs):
+        waits.append(nav.latest)
+        if len(waits) > 1:
+            raise main.Stopped("finished replay")
+        nav.energy = 5
+
+    monkeypatch.setattr(main, "_wait_for_energy", refill)
+    with pytest.raises(main.Stopped, match="finished replay"):
+        run_with(monkeypatch, nav, [V, V], RunRequest(mode, None, repeat=True, loop=True), finish)
+    assert nav.started == ["detect", ("latest", 58), ("latest", 59)]
+    assert waits == [59, 60]
+    assert FakeEmulator.shutdowns == 0
+
+
+@pytest.mark.parametrize("mode", [Mode.NORMAL, Mode.ELITE])
+def test_latest_advances_after_recovery_following_a_victory(monkeypatch, mode):
+    class Nav(FakeNav):
+        fail_lobby = False
+
+        def go_to_lobby(self):
+            if self.fail_lobby:
+                self.fail_lobby = False
+                raise main.NavigationError("connection lost after victory")
+            return super().go_to_lobby()
+
+    nav = Nav(energy=15, latest=58)
+
+    def finish(result):
+        if result is V:
+            nav.latest += 1
+            nav.fail_lobby = nav.latest == 59
+
+    report = run_with(monkeypatch, nav, [V, D, V], RunRequest(mode, None, repeat=True), finish)
+    assert report.results == [V, D, V]
+    assert nav.started == ["detect", ("latest", 58), "detect", ("latest", 59), ("latest", 59)]
+    assert FakeEmulator.shutdowns == 1
 
 
 def test_repeat_without_any_energy_is_an_error(monkeypatch):
@@ -703,17 +758,19 @@ def test_missing_elite_mode_stops_without_restarting(monkeypatch):
     assert FakeEmulator.shutdowns == 0
 
 
-def test_without_star_challenge_a_won_level_is_not_pinned(monkeypatch):
-    """Review: "last unlocked" + repeat pins the won level and replays it from the star list, which this
-    account doesn't have: fall back to the last unlocked level and stop trying the star list."""
+def test_missing_star_challenge_falls_back_to_latest_without_retrying_the_star_list(monkeypatch):
     class Nav(FakeNav):
         def start_star_challenge(self, mode, level):
             self.started.append(("stars?", level))
             raise main.StarsUnavailable("Desafio de Estrellas is not unlocked on this account")
-    nav = Nav(energy=15)
-    report = run_with(monkeypatch, nav, [V, V, V], RunRequest(Mode.NORMAL, None, repeat=True))
+    nav = Nav(energy=15, latest=58)
+
+    def finish(result):
+        nav.latest += 1
+
+    report = run_with(monkeypatch, nav, [V, V, V], RunRequest(Mode.NORMAL, 57, repeat=True), finish)
     assert report.results == [V, V, V]
-    assert nav.started == ["detect", ("latest", 13), ("stars?", 13), ("latest", 13), ("latest", 13)]
+    assert nav.started == ["detect", ("stars?", 57), ("latest", 58), ("latest", 59), ("latest", 60)]
 
 
 def test_failed_patrol_is_retried_much_later(monkeypatch):

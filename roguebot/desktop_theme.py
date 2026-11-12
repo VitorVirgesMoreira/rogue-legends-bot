@@ -26,7 +26,9 @@ def install_theme(root):
               foreground=[("disabled", "#53647a"), ("!disabled", "#ffffff")])
     style.configure("Shortcut.TButton", padding=(12, 4))
     style.configure("TCombobox", fieldbackground=SURFACE, padding=5, arrowsize=13)
+    # Clam otherwise uses white text for focused readonly fields, on our white background.
     style.map("TCombobox", fieldbackground=[("disabled", "#e2e8f1"), ("readonly", SURFACE)],
+              foreground=[("disabled", MUTED), ("!disabled", INK)],
               selectbackground=[("readonly", SURFACE)], selectforeground=[("readonly", INK)])
     for control in ("TEntry", "TSpinbox"):
         style.configure(control, fieldbackground=SURFACE, padding=4)

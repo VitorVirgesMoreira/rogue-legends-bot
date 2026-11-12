@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased (2026-11-12, desktop selections)
+- Keeps selected values readable when a dropdown has keyboard focus. Game mode, build profile and the other dropdowns no longer inherit white text on a white field from the Clam theme.
+- Adds contrast regression checks for focused, unfocused and selected dropdown text.
+
+## Unreleased (2026-11-12, desktop stage progression)
+- "Last unlocked" rechecks the current lobby stage before every run instead of pinning the first won stage to replay from Star Challenge. Wins advance to the next unlocked stage; defeats retry the current one, including after energy waits and recovery.
+- Adds normal/elite regression coverage for stage progression, energy refill cycles, recovery after victory and the missing Star Challenge fallback.
+
 ## Unreleased (2026-11-12, account skill tree)
 - Opens an overly close skill-tree zoom with two simultaneous touch pointers, then traverses overlapping rows across the left and right branches and upward, with pan-limit detection and bounded coverage.
 - Skips the small ten-level HP/ATK/DEF squares and inspects learned skill-unlock or skill-upgrade nodes instead. Removes the old six-node/four-page limits and scales icon tap offsets with zoom.
