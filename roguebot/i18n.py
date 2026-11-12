@@ -1,26 +1,183 @@
-"""UI texts in Spanish and English. Keys must exist in both (checked by tests)."""
+"""UI texts in Brazilian Portuguese, Spanish and English; all locales share keys/placeholders."""
 
-UI_LANGUAGES = {"es": "Español", "en": "English"}
+from roguebot.observation_texts import TEXTS as OBSERVATION_TEXTS
+from roguebot.strategy_texts import TEXTS as STRATEGY_TEXTS
+
+DEFAULT_UI_LANGUAGE = "pt"
+UI_LANGUAGES = {"pt": "Português", "es": "Español", "en": "English"}
 
 TEXTS = {
+    "pt": {
+        "changelog": "Novidades",
+        "info_title": "Informações",
+        "info": (
+            "Requisitos:\n"
+            "  • MuMu Player 12 com Rogue Legend instalado (9:16) ou Google Developer Emulator.\n"
+            "  • Jogo em português, inglês ou espanhol, com o tutorial inicial concluído.\n"
+            "Iniciar abre o MuMu e o jogo. Abra o Google Developer Emulator manualmente.\n"
+            "  • Deixe o emulador livre enquanto o bot joga.\n"
+            "  • O bot nunca gasta diamantes nem compra ofertas.\n"
+            "  • Recursos indisponíveis na sua conta (guilda, elite, modos…) são ignorados.\n"
+            "  • Em caso de falha, recupera a conexão e o jogo; no MuMu, também reinicia o emulador.\n"
+            "  • Capturas de falhas ficam na pasta debug. Suas opções são salvas para a próxima vez."
+        ),
+        "language": "Idioma",
+        "emulator": "Emulador",
+        "adb_path": "ADB (vazio: automático)",
+        "device_serial": "Dispositivo (vazio: padrão)",
+        "check_connection": "Verificar conexão",
+        "checking_connection": "Verificando dispositivo, jogo e captura de tela…",
+        "connection_unknown": "Clique em Verificar conexão para consultar o dispositivo, a resolução e a área do jogo.",
+        "connection_unknown_google": "Abra o Developer Emulator manualmente. Dispositivo padrão: localhost:6520. Verifique a conexão antes de iniciar.",
+        "connection_ok": "Conectado: {serial} • Tela {width}×{height} • Jogo {vw}×{vh} em ({left}, {top}) • Rogue Legend: {installed}",
+        "installed": "instalado",
+        "missing": "não instalado",
+        "google_found": "✓ Google Play Games Developer Emulator encontrado",
+        "google_not_found": "Instalação não detectada automaticamente; selecione o adb.exe do Developer Emulator.",
+        "err_google_adb": "ADB do Developer Emulator não encontrado ({path}). Instale a edição para desenvolvedores ou selecione o adb.exe.",
+        "err_adb_path": "O executável ADB não existe: {path}.",
+        "err_google_connection": "Não foi possível conectar a {serial}. Abra ou reinicie o Google Play Games Developer Emulator e confira o identificador ADB.",
+        "err_google_boot": "O Android ainda não está pronto em {serial}. Reinicie o Developer Emulator e verifique novamente.",
+        "err_mumu_not_running": "Abra o MuMu para verificar a conexão ou clique em Iniciar para abri-lo.",
+        "err_provider": "Provedor de emulador desconhecido: {provider}.",
+        "err_manual_setup": "Conclua os acordos legais, o login ou as permissões manualmente e clique em Iniciar novamente.",
+        "mumu_folder": "Pasta do MuMu Player",
+        "browse": "Procurar…",
+        "all_files": "Todos os arquivos",
+        "mumu_ok": "✓ MuMu Player encontrado",
+        "mumu_bad": "✗ A pasta selecionada não contém uma instalação do MuMu Player",
+        "err_mumu_folder": "MuMu Player não encontrado em «{folder}». Selecione a pasta de instalação.",
+        "err_mumu_boot": "O MuMu Player não concluiu a inicialização em {seconds} s.",
+        "err_mumu_adb": "Não foi possível conectar ao emulador ({serial}).",
+        "err_game_missing": "Rogue Legend não está instalado no emulador.",
+        "err_game_open": "Não foi possível abrir Rogue Legend no emulador.",
+        "err_game_update": "Rogue Legend precisa de uma atualização. Atualize o jogo pelo Google Play e clique em Iniciar novamente.",
+        "err_game_load": "Rogue Legend não chegou à tela principal em {seconds} s.",
+        "mode": "Modo",
+        "normal": "Normal",
+        "party_expedition": "Party Expedition",
+        "party_options": "Expedição",
+        "party_role": "Função preferida",
+        "party_role_striker": "Atacante",
+        "party_role_support": "Suporte",
+        "party_role_guardian": "Guardião",
+        "party_runs": "Limite de partidas",
+        "party_help": "Meta: 20/20 a partir do stage atual. Prioriza rotas com baús e repete após derrota enquanto houver tentativas, respeitando o limite de partidas. Reconhece português, inglês e espanhol.",
+        "bad_party_role": "Escolha Atacante, Suporte ou Guardião para a expedição.",
+        "bad_party_runs": "O limite da expedição deve ser um número inteiro entre 1 e 20.",
+        "party_summary": "Party Expedition — partidas: {runs}, vitórias: {wins}, derrotas: {losses}. {reason}",
+        "party_limit": "Limite atingido.",
+        "party_no_tickets": "Sem tentativas do evento.",
+        "party_defeat": "Interrompido após derrota.",
+        "party_complete": "Expedição concluída.",
+        "party_unavailable": "Evento indisponível nesta conta.",
+        "party_match_timeout": "Não foi possível formar uma equipe a tempo.",
+        "party_unknown": "Tela da Party Expedition não reconhecida. Confira a captura na pasta debug.",
+        "party_ticket_unknown": "Não foi possível ler as tentativas da Party Expedition.",
+        "elite": "Elite",
+        "elite_energy": "Energia por fase elite",
+        "elite_energy_auto": "Automático",
+        "bad_elite_energy": "Escolha 5, 10, 15 ou Automático para a energia no modo elite.",
+        "bad_build_profile": "Escolha uma linha de build válida.",
+        "build_profile": "Linha da build",
+        "build_focus_help": "Mantém o foco durante a fase, melhora habilidades já escolhidas e evita compras de outras linhas. No automático, o primeiro elemento escolhido define o foco.",
+        "profile_custom": "Automática (segue a ordem dos tipos)",
+        "profile_burn": "Fogo + crítico (shuriken secundária)",
+        "profile_fire": "Fogo puro / queimadura",
+        "profile_ice": "Gelo",
+        "profile_lightning": "Raio",
+        "profile_shuriken": "Shuriken",
+        "profile_venom": "Veneno",
+        "profile_bleed": "Sangramento",
+        "level": "Fase",
+        "latest": "Última desbloqueada",
+        "beaten": "Última concluída",
+        "pending": "Estrelas pendentes",
+        "stars": "Desafio das Estrelas",
+        "start": "Iniciar",
+        "stop": "Parar",
+        "build_title": "Habilidades (fases e loja)",
+        "build_burn": "Queimadura: fogo > crítico > shuriken (substitui o tipo de dano e a ordem acima)",
+        "build_nature": "Tipo de dano preferido",
+        "physical": "Físico",
+        "magic": "Mágico",
+        "build_order": "Prioridade dos tipos",
+        "move_up": "▲ Subir",
+        "move_down": "▼ Descer",
+        "build_support": "Escolher uma habilidade de suporte a cada",
+        "build_support_after": "habilidades de dano",
+        "type_ice": "Gelo",
+        "type_lightning": "Raio",
+        "type_fire": "Fogo",
+        "type_shuriken": "Shuriken",
+        "type_venom": "Veneno",
+        "type_bleed": "Sangramento",
+        "stopping": "Parando… (aguardando a ação atual terminar)",
+        "stopped": "Interrompido pelo usuário",
+        "idle": "Aguardando",
+        "running": "Executando…",
+        "bad_level": "A fase deve ser um número inteiro positivo",
+        "error": "Erro: {msg}",
+        "dry_run": "Simulação concluída",
+        "victory": "Vitória",
+        "defeat": "Derrota",
+        "level_finished": "Fase concluída: {result}",
+        "out_of_energy": "Sem energia — partidas: {runs}, vitórias: {wins}, derrotas: {losses}",
+        "loop": "Continuar jogando: sem energia, coletar a gratuita, aguardar a recarga e repetir.\nDesmarcado: parar quando acabar a energia.",
+        "ads": "Coletar recompensas de anúncios (somente com o passe que pula anúncios)",
+        "bad_routine_parts": "Selecione apenas as atividades disponíveis na aba Jogar.",
+        "part_arena": "Arena",
+        "part_tower": "Torre",
+        "part_dojo": "Batalha do Dojo",
+        "part_dive": "Masmorra",
+        "part_mail": "Correio",
+        "part_mines": "Minas de Cristal",
+        "part_pets": "Reino dos Mascotes",
+        "part_raid": "Chefe da guilda",
+        "part_vip": "Cartões VIP",
+        "part_patrol": "Patrulha",
+        "part_donate": "Doação à guilda",
+        "status_done": "concluído",
+        "status_skipped": "ignorado",
+        "status_failed": "FALHOU",
+    },
     "es": {
-        "title": "Bot de Rogue Legend",
         "changelog": "Novedades",
         "info_title": "Info",
         "info": (
             "Requisitos:\n"
-            "  • MuMu Player 12 con Rogue Legend instalado, en vertical (9:16).\n"
-            "  • El juego en español o inglés, con el tutorial inicial terminado.\n"
-            "Al pulsar Iniciar, el bot abre el emulador y el juego si hace falta.\n"
+            "  • MuMu Player 12 con Rogue Legend instalado (9:16), o Google Developer Emulator.\n"
+            "  • El juego en portugués, español o inglés, con el tutorial inicial terminado.\n"
+            "Iniciar abre MuMu y el juego; Google Developer Emulator debe estar abierto.\n"
             "  • No uses el emulador mientras el bot juega.\n"
             "  • Nunca gasta diamantes ni compra ofertas.\n"
             "  • Si tu cuenta no tiene una función (gremio, élite, modos…), la salta y sigue.\n"
-            "  • Si se atasca, reinicia el emulador y sigue. Las capturas de los fallos van a la carpeta debug.\n"
+            "  • Si se atasca, recupera la conexión y el juego; en MuMu reinicia el emulador. Las capturas de los fallos van a la carpeta debug.\n"
             "  • Tus opciones se guardan para la próxima vez."
         ),
         "language": "Idioma",
+        "emulator": "Emulador",
+        "adb_path": "ADB (vacío: automático)",
+        "device_serial": "Dispositivo (vacío: predeterminado)",
+        "check_connection": "Comprobar conexión",
+        "checking_connection": "Comprobando dispositivo, juego y captura…",
+        "connection_unknown": "Pulsa Comprobar conexión para leer el dispositivo, la resolución y el área de juego.",
+        "connection_unknown_google": "Abre el Developer Emulator manualmente. Dispositivo predeterminado: localhost:6520. Comprueba la conexión antes de Iniciar.",
+        "connection_ok": "Conectado: {serial} • Pantalla {width}×{height} • Juego {vw}×{vh} en ({left}, {top}) • Rogue Legend: {installed}",
+        "installed": "instalado",
+        "missing": "no instalado",
+        "google_found": "✓ Google Play Games Developer Emulator encontrado",
+        "google_not_found": "No detectado automáticamente; selecciona el adb.exe del Developer Emulator.",
+        "err_google_adb": "No se encontró ADB del Developer Emulator ({path}). Instala la edición para desarrolladores o elige adb.exe.",
+        "err_adb_path": "El ejecutable ADB no existe: {path}.",
+        "err_google_connection": "No se puede conectar con {serial}. Abre o reinicia Google Play Games Developer Emulator manualmente y comprueba el dispositivo ADB.",
+        "err_google_boot": "Android no está listo en {serial}. Reinicia el Developer Emulator manualmente y vuelve a comprobar.",
+        "err_mumu_not_running": "Abre MuMu para comprobar la conexión, o pulsa Iniciar para arrancarlo.",
+        "err_provider": "Proveedor de emulador desconocido: {provider}.",
+        "err_manual_setup": "Completa los acuerdos legales, el inicio de sesión o los permisos manualmente y vuelve a Iniciar.",
         "mumu_folder": "Carpeta de MuMu Player",
         "browse": "Examinar…",
+        "all_files": "Todos los archivos",
         "mumu_ok": "✓ MuMu Player encontrado",
         "mumu_bad": "✗ No es una carpeta de MuMu Player",
         "err_mumu_folder": "No se encontró MuMu Player en «{folder}». Elige su carpeta de instalación.",
@@ -32,7 +189,40 @@ TEXTS = {
         "err_game_load": "Rogue Legend no llegó a la pantalla principal en {seconds} s.",
         "mode": "Modo",
         "normal": "Normal",
+        "party_expedition": "Party Expedition",
+        "party_options": "Expedición",
+        "party_role": "Rol preferido",
+        "party_role_striker": "Atacante",
+        "party_role_support": "Apoyo",
+        "party_role_guardian": "Guardián",
+        "party_runs": "Límite de partidas",
+        "party_help": "Meta: 20/20 desde el stage actual. Prioriza rutas con cofres y reintenta tras una derrota mientras haya intentos, respetando el límite de partidas. Reconoce portugués, inglés y español.",
+        "bad_party_role": "Elige Atacante, Apoyo o Guardián para la expedición.",
+        "bad_party_runs": "El límite de la expedición debe ser un entero entre 1 y 20.",
+        "party_summary": "Party Expedition — partidas: {runs}, victorias: {wins}, derrotas: {losses}. {reason}",
+        "party_limit": "Límite alcanzado.",
+        "party_no_tickets": "Sin intentos del evento.",
+        "party_defeat": "Detenido tras una derrota.",
+        "party_complete": "Expedición completada.",
+        "party_unavailable": "Evento no disponible en esta cuenta.",
+        "party_match_timeout": "No se pudo formar un equipo a tiempo.",
+        "party_unknown": "Pantalla de Party Expedition no reconocida. Revisa la captura en debug.",
+        "party_ticket_unknown": "No se pudieron leer los intentos de Party Expedition.",
         "elite": "Élite",
+        "elite_energy": "Energía por partida élite",
+        "elite_energy_auto": "Automático",
+        "bad_elite_energy": "Elige 5, 10, 15 o Automático para la energía en élite.",
+        "bad_build_profile": "Elige una línea de build válida.",
+        "build_profile": "Línea de build",
+        "build_focus_help": "Mantiene el enfoque durante la partida, mejora habilidades aprendidas y evita comprar otras líneas. En automático, el primer elemento elegido fija el enfoque.",
+        "profile_custom": "Automática (sigue el orden de tipos)",
+        "profile_burn": "Fuego + crítico (shuriken secundaria)",
+        "profile_fire": "Fuego puro / quemadura",
+        "profile_ice": "Hielo",
+        "profile_lightning": "Rayo",
+        "profile_shuriken": "Shuriken",
+        "profile_venom": "Veneno",
+        "profile_bleed": "Sangrado",
         "level": "Nivel",
         "latest": "Último desbloqueado",
         "beaten": "Último superado",
@@ -41,6 +231,7 @@ TEXTS = {
         "start": "Iniciar",
         "stop": "Detener",
         "build_title": "Build (habilidades en niveles y tienda)",
+        "build_burn": "Quemadura: fuego > crítico > shuriken (sustituye naturaleza y orden de tipos)",
         "build_nature": "Daño preferido",
         "physical": "Físico",
         "magic": "Mágico",
@@ -68,12 +259,11 @@ TEXTS = {
         "out_of_energy": "Sin energía tras {runs} partidas: {wins} victorias, {losses} derrotas",
         "loop": "Seguir jugando: al quedarse sin energía (tras reclamar la gratis), esperar energía y volver a empezar. Desactivado: parar sin energía",
         "ads": "Ver anuncios (solo si la cuenta tiene comprada la opción de saltar anuncios)",
-        "full": "Rutina completa: Tarjetas VIP, recompensas diarias, correo, patrulla, modos (Arena, Dojo, Torre, Mazmorra, Minas, Mascotas), jefe del gremio, donación gratis y luego los niveles de Modo/Nivel",
+        "bad_routine_parts": "Selecciona solo las actividades disponibles en la pestaña Jugar.",
         "part_arena": "Arena",
         "part_tower": "Torre",
         "part_dojo": "Batalla de Dojo",
         "part_dive": "Descenso a la Mazmorra",
-        "part_daily": "Recompensas diarias",
         "part_mail": "Correo",
         "part_mines": "Minas de cristal",
         "part_pets": "Reino de mascotas",
@@ -86,23 +276,42 @@ TEXTS = {
         "status_failed": "FALLÓ",
     },
     "en": {
-        "title": "Rogue Legend bot",
         "changelog": "Changelog",
         "info_title": "Info",
         "info": (
             "Requirements:\n"
-            "  • MuMu Player 12 with Rogue Legend installed, in portrait (9:16).\n"
-            "  • The game in Spanish or English, with the first tutorial finished.\n"
-            "On Start, the bot opens the emulator and the game if needed.\n"
+            "  • MuMu Player 12 with Rogue Legend installed (9:16), or Google Developer Emulator.\n"
+            "  • The game in Portuguese, Spanish or English, with the first tutorial finished.\n"
+            "Start opens MuMu and the game; open Google Developer Emulator manually.\n"
             "  • Don't use the emulator while the bot plays.\n"
             "  • It never spends gems or buys offers.\n"
             "  • If your account lacks a feature (guild, elite, modes…), it skips it and moves on.\n"
-            "  • If it gets stuck, it restarts the emulator and goes on. Screenshots of failures go to the debug folder.\n"
+            "  • If it gets stuck, it recovers the connection and game; MuMu also restarts. Screenshots of failures go to the debug folder.\n"
             "  • Your options are saved for next time."
         ),
         "language": "Language",
+        "emulator": "Emulator",
+        "adb_path": "ADB (blank: automatic)",
+        "device_serial": "Device (blank: default)",
+        "check_connection": "Check connection",
+        "checking_connection": "Checking device, game and screenshot…",
+        "connection_unknown": "Use Check connection to read the device, display resolution and game viewport.",
+        "connection_unknown_google": "Open the Developer Emulator manually. Default device: localhost:6520. Check connection before Start.",
+        "connection_ok": "Connected: {serial} • Display {width}×{height} • Game {vw}×{vh} at ({left}, {top}) • Rogue Legend: {installed}",
+        "installed": "installed",
+        "missing": "not installed",
+        "google_found": "✓ Google Play Games Developer Emulator found",
+        "google_not_found": "Not detected automatically; select the Developer Emulator's adb.exe.",
+        "err_google_adb": "Developer Emulator ADB not found ({path}). Install the developer edition or choose its adb.exe.",
+        "err_adb_path": "ADB executable does not exist: {path}.",
+        "err_google_connection": "Cannot connect to {serial}. Open or restart Google Play Games Developer Emulator manually and check the ADB device serial.",
+        "err_google_boot": "Android is not ready on {serial}. Restart the Developer Emulator manually and check again.",
+        "err_mumu_not_running": "Open MuMu to check the connection, or press Start to boot it.",
+        "err_provider": "Unknown emulator provider: {provider}.",
+        "err_manual_setup": "Complete legal agreements, login or permissions manually, then press Start again.",
         "mumu_folder": "MuMu Player folder",
         "browse": "Browse…",
+        "all_files": "All files",
         "mumu_ok": "✓ MuMu Player found",
         "mumu_bad": "✗ Not a MuMu Player folder",
         "err_mumu_folder": "MuMu Player was not found in \"{folder}\". Choose its installation folder.",
@@ -114,7 +323,40 @@ TEXTS = {
         "err_game_load": "Rogue Legend did not reach its main screen in {seconds} s.",
         "mode": "Mode",
         "normal": "Normal",
+        "party_expedition": "Party Expedition",
+        "party_options": "Expedition",
+        "party_role": "Preferred role",
+        "party_role_striker": "Striker",
+        "party_role_support": "Support",
+        "party_role_guardian": "Guardian",
+        "party_runs": "Match limit",
+        "party_help": "Goal: 20/20 from the current stage. Favors treasure routes and retries defeats while attempts remain, within the match limit. Portuguese, English and Spanish recognition.",
+        "bad_party_role": "Choose Striker, Support or Guardian for the expedition.",
+        "bad_party_runs": "The expedition match limit must be an integer between 1 and 20.",
+        "party_summary": "Party Expedition — matches: {runs}, wins: {wins}, defeats: {losses}. {reason}",
+        "party_limit": "Match limit reached.",
+        "party_no_tickets": "No event attempts left.",
+        "party_defeat": "Stopped after a defeat.",
+        "party_complete": "Expedition completed.",
+        "party_unavailable": "Event unavailable on this account.",
+        "party_match_timeout": "Could not form a team in time.",
+        "party_unknown": "Unrecognized Party Expedition screen. Check the screenshot in debug.",
+        "party_ticket_unknown": "Could not read the Party Expedition attempt counter.",
         "elite": "Elite",
+        "elite_energy": "Energy per elite run",
+        "elite_energy_auto": "Automatic",
+        "bad_elite_energy": "Choose 5, 10, 15 or Automatic for elite energy.",
+        "bad_build_profile": "Choose a valid build line.",
+        "build_profile": "Build line",
+        "build_focus_help": "Keeps one focus during the level, upgrades learned skills and avoids off-line purchases. Automatic commits to the first chosen element.",
+        "profile_custom": "Automatic (follows type order)",
+        "profile_burn": "Fire + critical (secondary shuriken)",
+        "profile_fire": "Pure fire / burn",
+        "profile_ice": "Ice",
+        "profile_lightning": "Lightning",
+        "profile_shuriken": "Shuriken",
+        "profile_venom": "Venom",
+        "profile_bleed": "Bleed",
         "level": "Level",
         "latest": "Last unlocked",
         "beaten": "Last beaten",
@@ -123,6 +365,7 @@ TEXTS = {
         "start": "Start",
         "stop": "Stop",
         "build_title": "Build (skills in levels and shops)",
+        "build_burn": "Burn build: fire > critical > shuriken (overrides nature and type order)",
         "build_nature": "Preferred damage",
         "physical": "Physical",
         "magic": "Magic",
@@ -150,12 +393,11 @@ TEXTS = {
         "out_of_energy": "Out of energy after {runs} runs: {wins} victories, {losses} defeats",
         "loop": "Keep running: when out of energy (after claiming the free one), wait for energy and start again. Off: stop when out of energy",
         "ads": "Watch ads (only if the account has bought the skip ads option)",
-        "full": "Full routine: VIP cards, daily rewards, mail, patrol, modes (Arena, Dojo, Tower, Dungeon, Mines, Pets), guild raid, free guild donation, then the Mode/Level levels",
+        "bad_routine_parts": "Select only activities available on the Play tab.",
         "part_arena": "Arena",
         "part_tower": "Tower",
         "part_dojo": "Dojo Battle",
         "part_dive": "Dungeon Dive",
-        "part_daily": "Daily rewards",
         "part_mail": "Mail",
         "part_mines": "Crystal Mines",
         "part_pets": "Pet Kingdom",
@@ -168,6 +410,20 @@ TEXTS = {
         "status_failed": "FAILED",
     },
 }
+
+
+for _language, _strings in OBSERVATION_TEXTS.items():
+    TEXTS[_language].update(_strings)
+for _language, _strings in STRATEGY_TEXTS.items():
+    TEXTS[_language].update(_strings)
+
+
+from roguebot.account_texts import TEXTS as ACCOUNT_TEXTS
+from roguebot.desktop_texts import TEXTS as DESKTOP_TEXTS
+for _language, _strings in ACCOUNT_TEXTS.items():
+    TEXTS[_language].update(_strings)
+for _language, _strings in DESKTOP_TEXTS.items():
+    TEXTS[_language].update(_strings)
 
 
 def tr(lang: str, key: str, **kwargs) -> str:

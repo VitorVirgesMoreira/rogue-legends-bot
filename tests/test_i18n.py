@@ -2,22 +2,25 @@
 
 import pytest
 
-from roguebot.i18n import TEXTS, tr
+from roguebot.i18n import TEXTS, UI_LANGUAGES, tr
 from roguebot.report import Report, render
 from roguebot.screens import LevelScreen
 
 V, D = LevelScreen.VICTORY, LevelScreen.DEFEAT
 
 
-def test_both_languages_have_the_same_keys():
-    assert TEXTS["es"].keys() == TEXTS["en"].keys()
+def test_all_languages_have_the_same_keys():
+    assert TEXTS.keys() == UI_LANGUAGES.keys()
+    for lang in TEXTS:
+        assert TEXTS[lang].keys() == TEXTS["en"].keys(), lang
 
 
 def test_placeholders_match_between_languages():
     import string
     fields = lambda s: {f for _, f, _, _ in string.Formatter().parse(s) if f}  # noqa: E731
-    for key in TEXTS["es"]:
-        assert fields(TEXTS["es"][key]) == fields(TEXTS["en"][key]), key
+    for lang in TEXTS:
+        for key in TEXTS[lang]:
+            assert fields(TEXTS[lang][key]) == fields(TEXTS["en"][key]), (lang, key)
 
 
 @pytest.mark.parametrize("report, es, en", [
@@ -46,3 +49,15 @@ def test_every_routine_part_and_status_is_translated():
             assert tr(lang, "part_" + part)
         for status in (DONE, SKIPPED, FAILED):
             assert tr(lang, "status_" + status)
+
+
+@pytest.mark.parametrize("report,expected", [
+    (Report([V]), "Fase concluída: Vitória"),
+    (Report([D]), "Fase concluída: Derrota"),
+    (Report(dry_run=True), "Simulação concluída"),
+    (Report([V, D, V], repeat=True), "Sem energia — partidas: 3, vitórias: 2, derrotas: 1"),
+    (Report([V], repeat=True, parts=[("arena", "done"), ("tower", "failed"), ("raid", "skipped")]),
+     "Arena: concluído, Torre: FALHOU, Chefe da guilda: ignorado\nSem energia — partidas: 1, vitórias: 1, derrotas: 0"),
+])
+def test_portuguese_run_summaries(report, expected):
+    assert render(report, "pt") == expected

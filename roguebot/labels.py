@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 from roguebot.vision import normalize
 
-LANGUAGES = ("es", "en")
+LANGUAGES = ("es", "en", "pt")
 _active: str | None = None  # None = not detected yet: match every language
 
 
@@ -20,18 +20,19 @@ _active: str | None = None  # None = not detected yet: match every language
 class Label:
     es: tuple[str, ...] = ()
     en: tuple[str, ...] = ()
+    pt: tuple[str, ...] = ()
 
     @property
     def variants(self) -> tuple[str, ...]:
         if _active is None:
-            return self.es + self.en
+            return self.es + self.en + self.pt
         return getattr(self, _active)
 
 
-def _l(es: str | tuple[str, ...] = (), en: str | tuple[str, ...] = ()) -> Label:
+def _l(es: str | tuple[str, ...] = (), en: str | tuple[str, ...] = (), pt: str | tuple[str, ...] = ()) -> Label:
     def norm(v):
         return tuple(normalize(x) for x in ((v,) if isinstance(v, str) else v))
-    return Label(norm(es), norm(en))
+    return Label(norm(es), norm(en), norm(pt))
 
 
 def set_language(lang: str | None) -> None:
@@ -100,7 +101,7 @@ REMAINING = _l("cantidad restante", "remaining")       # quick patrol: "Cantidad
 FREE = _l("gratis", "free")                          # exact; shop reroll price when free
 SOLD_OUT = _l(("agotado", "vendido"), ("sold out", "soldout"))  # bought shop card (Spanish guessed)
 BLACK_MARKET = _l("mercado negro", "black market")   # rare shop variant (not seen yet, guessed)
-LEAVE = _l("salir", ("exit", "leave", "walk away"))  # exact
+LEAVE = _l(("salir", "rechazar", "negarse", "alejarse"), ("exit", "leave", "walk away", "refuse", "decline"))  # exact
 FORTUNE_TELLER = _l("adivino", "fortune teller")             # balls that may give a skill, paid with run orbs
 FIGHT_ROUND = _l("ronda", "round")                   # "Ronda 3/30" / "Round 4/30"
 REVIVE_PROMPT = _l("revivir ahora", "revive")        # "¡Revivir ahora!" on death, 10 s countdown (English guessed)
@@ -118,7 +119,9 @@ CHALLENGE = _l(("desafiar", "desafio"), "challenge")  # exact (arena/tower/mines
 ARENA_PANEL = _l("desafio de la arena", "arena challenge")  # opponent list title
 FREE_REFRESH = _l("recarga gratis", "free refresh")  # opponent list refresh, only when free
 TOWER_TITLE = _l("torre de los heroes", "tower of heroes")
-TOWER_NEXT_FLOOR = _l("proximo piso", "next floor")  # tower victory: starts the next floor (one more ticket); en guessed
+TOWER_NEXT_FLOOR = _l("proximo piso", "next floor")  # tower victory: starts the next floor (one more ticket)
+TOWER_NEXT = _l("siguiente", "next", "proximo")     # current tower victory, also shown with a countdown
+TOWER_AUTO_NEXT = _l("avance", "auto next", ("avanco", "proximo nivel automatico", "auto next"))
 TOWER_CLEARED = _l(("felicidades", "enhorabuena"), "congratulations on clearing")  # whole tower done: chest (es guessed)
 DIFFICULTY = _l("dificultad", "difficulty")          # mines / pet popup
 SWEEP = _l("barrer", "sweep previous")               # "Barrer etapa anterior" / "Sweep previous stage"
@@ -127,10 +130,12 @@ DOJO = _l("batalla de dojo", "dojo battle")          # modes list card / dojo sc
 DIVE = _l("descenso a", "dungeon dive")              # modes list card "Descenso a la Mazmorra" (OCR: "ala"); en (?)
 DIVE_REWARDS = _l("recompensas", "rewards")          # exact; dungeon dive screen, above the rewards
 DOJO_CHEST = _l("reclamar", "claim")                 # exact; dojo progress chest ("Intenta el Dojo N veces")
+FIGHT_SKIP = _l(("omitir", "saltar"), "skip", ("pular", "ignorar"))
+VIP_OFFER = _l("tarjeta vip", "vip card", "cartao vip")
 MENU_DAILY = _l(("diarias", "recompensas diarias"), ("daily", "daily rewards"))  # exact; top-left menu, wraps "Recompensas / Diarias"; en (?)
 MENU_MAIL = _l("correo", "mail")                     # exact; top-left menu; en (?)
 DAILY_TITLE = _l("recompensas diarias", "daily rewards")  # daily rewards popup; en (?)
-DAILY_CLAIM = _l("reclamar", "claim")                # exact; daily rewards popup: opens the game's web store
+DAILY_CLAIM = _l("reclamar", ("claim", "claim rewards"))  # exact; opens the game's web store
 DAILY_WEB_CLAIM = _l("reclamar ahora", "claim now")  # web store page (browser) "Reclamar ahora!"; en (?)
 MAIL_TITLE = _l("correo", "mail")                    # exact; mail popup title; en (?)
 VIP_CARDS = _l(("tarjetas vip", "tarjetas", "vip"), ("vip cards", "cards", "vip"))  # exact; lobby left column icon; OCR splits it ("Tarjetas / VIP", "VIP / Cards") and garbles "VIP" in English ("VIPS", "LVIP")
@@ -155,6 +160,64 @@ RARITIES = (                                         # best first; exact match o
     _l(("raro", "rara"), "rare"),                    # (?)
     _l("comun", "common"),
 )
+
+
+# Portuguese recognition is separate from the bot window's UI language. Variants
+# include Brazilian and European wording; input still requires the same geometry,
+# enabled-button checks and confirmations as English/Spanish.
+_PORTUGUESE = {
+    "PATROL": "patrulha", "STARS_BUTTON": ("desafio de estrelas", "desafio das estrelas", "estelar"),
+    "ELITE_ON": ("ativado", "ligado"), "ELITE_OFF": ("desativado", "desligado"),
+    "START_NORMAL": ("iniciar", "inicio"), "START_ELITE": ("pronto", "iniciar"),
+    "LOADING": "carregando", "POPUP_CLOSE": "para fechar", "LOBBY_TAB": "aventura",
+    "MODES_BUTTON": "modos", "STAR_LIST_TITLE": ("desafio de estrelas", "desafio das estrelas", "desafio de"),
+    "LIST_REWARDS": "recompensas", "ELITE_DIALOG_TITLE": "modo elite",
+    "ENERGY_POPUP_TITLE": ("comprar", "compra"),
+    "ENERGY_CHANCES": ("tentativas restantes", "chances restantes"),
+    "ENERGY_FREE": ("gratis", "gratuito"), "DAILY_PACK_CLAIMED": ("atualiza em", "renova em"),
+    "CONTINUE": "continuar", "CONFIRM": "confirmar", "DEFEAT": "derrota", "VICTORY": "vitoria",
+    "DOUBLE_REWARD": ("x2 recompensas", "recompensas x2", "dobrar recompensas"),
+    "SKILL_PROMPT": ("selecione uma habilidade", "escolha uma habilidade", "selecionar uma habilidade", "selecione uma pericia", "escolha uma pericia"),
+    "EXACT_BUTTONS": ("girar", "girar!", "resgatar", "coletar", "reivindicar"),
+    "DUEL_ROLL": ("rolar", "jogar", "lancar"), "DUEL_STAND": ("parar", "manter"),
+    "DUEL_SCORE_PREFIX": "eu", "FLIP_CARDS_PROMPT": ("vire 3 cartas identicas", "vire 3 cartas iguais"),
+    "SHOP_REROLL": ("rolar novamente", "nova rolagem", "atualizar"),
+    "SKILL_REROLL": ("rolar novamente", "nova rolagem", "tentar novamente"),
+    "PATROL_TIME": "tempo de patrulha", "PATROL_CLAIM": ("resgatar", "coletar", "reivindicar"),
+    "QUICK_PATROL": "patrulha rapid", "QUICK_PATROL_TEXT": ("colete imediatamente", "resgate imediatamente"),
+    "REMAINING": ("quantidade restante", "restantes"), "FREE": ("gratis", "gratuito"),
+    "SOLD_OUT": ("esgotado", "vendido"), "BLACK_MARKET": "mercado negro",
+    "LEAVE": ("sair", "recusar", "ir embora", "afastar-se"), "FORTUNE_TELLER": ("adivinho", "vidente"),
+    "FIGHT_ROUND": ("rodada", "ronda", "turno"), "REVIVE_PROMPT": ("reviver", "reviva agora"),
+    "REVIVE_FREE": ("gratis", "gratuito"), "LEVEL_MODIFIERS": ("modificadores de nivel", "modificadores do nivel"),
+    "GUILD_BUTTON": ("guilda", "cla"), "ARENA": "arena", "ARENA_CLOSED": ("abre em", "disponivel em"),
+    "TOWER": ("desafio da torre", "torre de desafios"), "MINES": "minas de cristal", "PETS": ("reino dos pets", "reino dos animais"),
+    "CHALLENGE": ("desafiar", "desafio"), "ARENA_PANEL": "desafio da arena", "FREE_REFRESH": "atualizar gratis",
+    "TOWER_TITLE": "torre dos herois", "TOWER_NEXT_FLOOR": ("proximo andar", "proximo piso"),
+    "TOWER_CLEARED": ("parabens por concluir", "parabens por completar"), "DIFFICULTY": "dificuldade",
+    "SWEEP": ("varrer fase anterior", "concluir fase anterior", "varrer anterior"),
+    "AD_TICKETS": ("bilhetes de masmorra", "ingressos de masmorra"), "DOJO": ("batalha do dojo", "batalha de dojo"),
+    "DIVE": ("mergulho na masmorra", "descida na masmorra", "exploracao de masmorra"),
+    "DIVE_REWARDS": "recompensas", "DOJO_CHEST": ("resgatar", "coletar", "reivindicar"),
+    "MENU_DAILY": ("diarias", "recompensas diarias"), "MENU_MAIL": ("correio", "mensagens"),
+    "DAILY_TITLE": "recompensas diarias", "DAILY_CLAIM": ("resgatar", "coletar", "reivindicar"),
+    "DAILY_WEB_CLAIM": ("resgatar agora", "coletar agora"), "MAIL_TITLE": ("correio", "mensagens"),
+    "VIP_CARDS": ("cartoes vip", "cartoes", "cartas", "vip"), "CLAIM_ALL": ("resgatar tudo", "coletar tudo", "reivindicar tudo"),
+    "GUILD_HALL": ("sala da guilda", "sala de guilda", "sala da"), "GUILD_HALL_LOWER": "guilda",
+    "DONATE": "doar", "DONATION_TITLE": ("doacao da guilda", "doacao de guilda"),
+    "RAID_BOSS": ("chefe de incursao", "chefe da incursao", "invasao"), "RAID_TITLE": ("incursao da guilda", "raid da guilda", "invasao da guilda"),
+    "RAID_ATTEMPTS": ("tentativas diarias restantes", "tentativas diarias"), "LEARN_SKILLS": "aprender habilidades",
+    "UPDATE_REQUIRED": "nova atualizacao", "RESUME_ADVENTURE": ("continuar aventura", "aventura em andamento"),
+    "OK": ("ok", "confirmar", "aceitar"),
+}
+from dataclasses import replace as _replace
+for _name, _variants in _PORTUGUESE.items():
+    globals()[_name] = _replace(globals()[_name], pt=_l(pt=_variants).pt)
+CONTINUE_BUTTONS = tuple(_replace(label, pt=_l(pt=variants).pt) for label, variants in zip(
+    CONTINUE_BUTTONS, (("toque em qualquer lugar", "toque em qualquer parte"), "toque para continuar")))
+TAP_TO_CONTINUE, TAP_TO_CLAIM = CONTINUE_BUTTONS[1], CONTINUE_BUTTONS[0]
+RARITIES = tuple(_replace(label, pt=_l(pt=variants).pt) for label, variants in zip(
+    RARITIES, (("mitico", "mitica"), ("lendario", "lendaria"), ("epico", "epica"), ("raro", "rara"), "comum")))
 
 
 def detect_language(texts) -> str | None:

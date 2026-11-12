@@ -30,19 +30,20 @@ RARITY_NAMES = ("mythic", "legendary", "epic", "rare", "common")  # same order a
 # the start of a word, so "ice" does not match "twice" or "price".
 _TYPE_WORDS = {
     "ice": ("ice", "icicle", "chill", "frost", "freez", "frozen", "snow", "hielo", "carambano", "escalofrio",
-            "frio", "escarcha", "congel", "nieve"),
+            "frio", "escarcha", "congel", "nieve", "gelo", "gelad"),
     "lightning": ("lightning", "bolt", "thunder", "shock", "electr", "spark", "rayo", "relampago", "trueno",
-                  "descarga", "chispa"),
+                  "descarga", "chispa", "raio", "trovao", "faisca"),
     "fire": ("fire", "burn", "flame", "blaze", "ignit", "inferno", "fuego", "quema", "llama", "ardiente",
-             "incendi", "ascua"),
+             "incendi", "ascua", "fogo", "queim", "chama", "flamej"),
     "shuriken": ("shuriken",),
     "venom": ("poison", "venom", "toxic", "veneno", "venen", "toxic"),
-    "bleed": ("bleed", "sangr", "wound", "herida"),  # the game's bleed effect is called "Wound"
+    "bleed": ("bleed", "sangr", "wound", "herida", "ferida"),  # Wound / Ferida
 }
 _DAMAGE_WORDS = ("atk", "atq", "damage", "dmg", "dano", "attack", "ataque", "crit", "execut", "ejecut", "counter",
                  "contraataque", "strike", "golpe")
 _SUPPORT_WORDS = ("shield", "escudo", "dodge", "evasion", "evade", "heal", "cura", "recover", "recupera", "restor",
-                  "restaura", "regenera", "def$", "max hp", "hp max", "lifesteal", "robo de vida", "revive", "revivir")
+                  "restaura", "regenera", "def$", "max hp", "hp max", "lifesteal", "robo de vida", "roubo de vida",
+                  "revive", "revivir", "reviver", "esquiva", "vida maxima", "pv max", "max pv")
 
 
 def _regex(stems) -> re.Pattern:
