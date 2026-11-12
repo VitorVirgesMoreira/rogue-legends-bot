@@ -1,26 +1,33 @@
-"""Full routine: VIP cards, daily rewards, mail, the daily modes (Arena, Dojo, Tower, Dungeon Dive,
+"""Routine: VIP cards, mail, the daily modes (Arena, Dojo, Tower, Dungeon Dive,
 Crystal Mines, Pet Kingdom), patrol and the guild raid/donation. Each part spends its tickets/attempts;
 a part that gets stuck is reported as failed and the routine goes on with the next one."""
 
 import logging
 import time
+from dataclasses import asdict
 from typing import Callable
 
 from roguebot import config, labels as L
-from roguebot.build import Build, BuildState, shop_order
+from roguebot.build import Build, BuildState, selection_order
+from roguebot.decisions import FightSkip
 from roguebot.device import Device
-from roguebot.mode_screens import (FightResult, back_arrow, daily_claim, free_donation, parse_patrol, parse_quick_patrol, guild_hall, guild_hall_donate, in_guild, is_modes_list, mail_claim_all, menu_entry, mode_closed, mode_entry, parse_arena, parse_arena_opponents,
+from roguebot.mode_screens import (FightResult, back_arrow, free_donation, parse_patrol, parse_quick_patrol, guild_hall, guild_hall_donate, in_guild, is_modes_list, mail_claim_all, menu_entry, mode_closed, mode_entry, parse_arena, parse_arena_opponents,
                                    parse_dive, parse_dojo, parse_dungeon_popup, parse_fight_result, parse_raid,
-                                   parse_skill_choice, parse_tower, pick_opponent, vip_cards_icon, vip_claim_all)
+                                   parse_skill_choice, parse_tower, pick_opponent, tower_auto_next_label,
+                                   vip_cards_icon, vip_claim_all)
 from roguebot.navigation import NavigationError, Navigator, _still_there
+from roguebot.observation import Observation, StatusPublisher
 from roguebot.play import PlayError
+from roguebot.progress import RoutineProgress
 from roguebot.screens import close_button, parse_energy, parse_lobby, parse_skill_cards, popup_close, rarity_name
 from roguebot.skills import Catalog, Skill
 from roguebot.vision import Ocr, Text, find
+from roguebot.schedule import RoutineSchedule, refresh_seconds
+from roguebot.metrics import History, RunRecord, result_values, build_signature
 
 log = logging.getLogger(__name__)
 
-PARTS = ("vip", "daily", "mail", "patrol", "arena", "dojo", "tower", "dive", "mines", "pets", "raid", "donate")
+PARTS = ("vip", "mail", "patrol", "arena", "dojo", "tower", "dive", "mines", "pets", "raid", "donate")
 MODE_PARTS = ("arena", "dojo", "tower", "dive", "mines", "pets")  # run from the modes list without going back to the lobby
 MAX_BACK_STEPS = 8   # screens to back out of (popups, arena panel, mode screen) to reach the modes list
 DONE, SKIPPED, FAILED = "done", "skipped", "failed"
@@ -48,36 +55,42 @@ class Routine:
         self.ocr = ocr
         self.nav = nav
         self.patrol_wait: float | None = None  # set by patrol(): seconds until it is worth opening again
+        self._combat_mode = "campaign"
+        self.schedule = RoutineSchedule()
+        self._last_texts = []
 
-    def run_parts(self, progress: dict | None = None) -> list[tuple[str, str]]:
-        """Run every part in order; returns (part, status) pairs.
+    def run_parts(self, progress: RoutineProgress | None = None, *, only=None) -> list[tuple[str, str]]:
+        """Run the selected parts in game order; returns (part, status) pairs.
 
         `progress` outlives an emulator restart (make_runner's state): parts already finished are not
         run again, so the routine resumes at the part that was running. A part that keeps breaking the
         run (more than PART_RESTARTS restarts) is marked failed and skipped."""
-        progress = {} if progress is None else progress
-        results = progress.setdefault("parts", [])
-        tries = progress.setdefault("part_tries", {})
+        progress = RoutineProgress() if progress is None else progress
+        results, tries = progress.parts, progress.tries
         finished = {part for part, _ in results}
-        steps = {"arena": self.arena, "dojo": self.dojo, "dive": self.dive, "daily": self.daily, "mail": self.mail,
+        monitor = StatusPublisher()
+        steps = {"arena": self.arena, "dojo": self.dojo, "dive": self.dive, "mail": self.mail,
                  "tower": self.tower, "mines": lambda: self.dungeon(L.MINES),
                  "pets": lambda: self.dungeon(L.PETS), "raid": self.raid, "vip": self.vip, "patrol": self.patrol,
                  "donate": self.donate}
-        for part, following in zip(PARTS, PARTS[1:] + (None,)):
-            if part in finished:
-                continue
+        pending = tuple(part for part in PARTS if part not in finished and (only is None or part in only))
+        for part, following in zip(pending, pending[1:] + (None,)):
+            self._last_texts = []
             tries[part] = tries.get(part, 0) + 1
             if tries[part] > PART_RESTARTS + 1:
                 log.error("Routine: %s broke the run %d times, skipping it", part, tries[part] - 1)
                 results.append((part, FAILED))
+                self.schedule.observe(part, time.time())
                 continue
             log.info("Routine: %s%s", part, f" (again after a restart, try {tries[part]})" if tries[part] > 1 else "")
+            monitor.publish(Observation("routine", reason="decision_routine", detail=part, source="phase"))
             try:
                 status = steps[part]()
             except (NavigationError, PlayError) as e:
                 log.error("Routine: %s failed: %s", part, e)
                 status = FAILED
             results.append((part, status))
+            self.schedule.observe(part, time.time(), refresh=refresh_seconds(self._last_texts), available=status != SKIPPED)
             # Stay in the modes tab between modes; the lobby after VIP, before the raid and before the levels.
             if not (part in MODE_PARTS and following in MODE_PARTS and self._back_to_modes()):
                 try:
@@ -124,21 +137,28 @@ class Routine:
         return self._claim_or(texts, lambda t: parse_arena_opponents(t, img, self.ocr))
 
     def tower(self) -> str:
-        """Climb until the first defeat or until no tickets are left. After a win, "Próximo piso" starts
-        the next floor right away (no loading, no tower screen) while another ticket is left; it is
-        never tapped for the last ticket (it could offer tickets for gems)."""
-        self._open_mode(L.TOWER)
+        """Climb successive towers, collecting each clear chest, until defeat or no tickets."""
+        if self._open_mode(L.TOWER) is False:
+            return SKIPPED
         tickets = 0
+        auto_next = False
         for _ in range(config.MAX_MODE_ACTIONS):
             if tickets < 1:  # read the tower screen (at the start, or after "Confirmar")
-                screen = self._wait_for(lambda img, texts: self._claim_or(texts, self._tower_or_chest), "tower screen")
+                screen = self._tower_screen()
                 tickets = screen.tickets
                 if tickets < 1:
                     log.info("Tower: no tickets left")
                     return DONE
+                auto_next = bool(screen.auto_next and screen.auto_next.checked)
+                if screen.auto_next and not auto_next:
+                    self.device.tap(*screen.auto_next.point)
+                    screen = self._wait_for(
+                        lambda img, texts: (tower := parse_tower(texts, img))
+                        and tower.auto_next and tower.auto_next.checked and tower, "tower Auto Next Level enabled")
+                    auto_next = True
                 log.info("Tower: challenge (%d tickets)", tickets)
                 self._press(screen.challenge)
-            result = self._fight(next_floor=tickets > 1)
+            result = self._fight(next_floor=tickets > 1, auto_next=auto_next)
             if not result.victory:
                 return DONE
             tickets = tickets - 1 if result.next_floor else 0  # 0: back on the tower screen
@@ -151,15 +171,24 @@ class Routine:
         sweep the previous stage. A defeat does not spend the ticket. At 0 tickets, watch the free
         ad for another one while it is offered."""
         self._open_mode(label)
-        lost = False
+        lost = waiting_for_ticket = False
+
+        def read_popup(img, texts):
+            popup = self._claim_or(texts, parse_dungeon_popup)
+            if popup and (not waiting_for_ticket or popup.tickets > 0):
+                return popup
+            return None
+
         for _ in range(config.MAX_MODE_ACTIONS):
-            popup = self._wait_for(lambda img, texts: self._claim_or(texts, parse_dungeon_popup), "dungeon popup")
+            popup = self._wait_for(read_popup, "dungeon ticket from the video" if waiting_for_ticket else "dungeon popup")
+            waiting_for_ticket = False
             if popup.tickets < 1:
                 if not (popup.ad and self.ads):
                     log.info("%s: no tickets left", label.variants[0])
                     return DONE
                 log.info("%s: watching an ad for a ticket", label.variants[0])
                 self.device.tap(*popup.ad.center, settle=config.VIDEO_SETTLE)
+                waiting_for_ticket = True
             elif lost:
                 if not popup.sweep:
                     self._fail("Sweep button not found")
@@ -174,8 +203,8 @@ class Routine:
         self._fail("Dungeon did not run out of tickets")
 
     def dojo(self) -> str:
-        """Dojo Battle: fight the training dummy (most damage wins rank) while there are tickets; skills by
-        rarity, like the raid. Also claims the free progress chest ("Intenta el Dojo N veces")."""
+        """Fight the Dojo dummy while there are tickets, choosing skills for the build.
+        Claim the free progress chest when it is ready."""
         if not self._open_mode(L.DOJO):
             log.info("Dojo: closed for now")
             return SKIPPED
@@ -186,13 +215,17 @@ class Routine:
                 log.info("Dojo: claiming the progress chest")
                 self._tap(screen.chest)
                 time.sleep(config.UI_SETTLE)
-            elif screen.tickets < 1 or not screen.challenge:
+            elif screen.tickets < 1:
                 log.info("Dojo: no tickets left")
                 return DONE
             else:
                 log.info("Dojo: challenge (%d tickets)", screen.tickets)
                 self._press(screen.challenge)
-                self._fight()
+                self._combat_mode = "dojo"
+                try:
+                    self._fight()
+                finally:
+                    self._combat_mode = "campaign"
         self._fail("Dojo did not run out of tickets")
 
     def dive(self) -> str:
@@ -210,22 +243,6 @@ class Routine:
             self._press(screen.challenge)
             log.info("Dungeon Dive finished: %s", self.play_level().value)
         self._fail("Dungeon Dive did not run out of tickets")
-
-    def daily(self) -> str:
-        """Lobby ≡ menu → "Recompensas Diarias" → "Reclamar": the game opens its web store in a browser,
-        where only "Reclamar ahora!" is tapped (the store sells things); then Back to the game. The
-        reward arrives by mail (the mail part comes next)."""
-        if not self._open_menu(L.MENU_DAILY):
-            return SKIPPED
-        self._tap(self._wait_for(lambda img, texts: daily_claim(texts), "daily rewards popup"))
-        try:
-            claim = self._wait_for(lambda img, texts: find(texts, L.DAILY_WEB_CLAIM), "daily reward web page")
-            log.info("Daily rewards: claiming on the web page")
-            self._tap(claim)
-            time.sleep(config.VIDEO_SETTLE)  # the page loads the store with the claimed day
-        finally:
-            self._back_to_game()
-        return DONE
 
     def mail(self) -> str:
         """Lobby ≡ menu → "Correo" → "Reclamar todo" (never "Eliminar todo"); claim popups; ✕."""
@@ -253,7 +270,11 @@ class Routine:
                 return DONE
             log.info("Raid: %d attempts left", screen.attempts)
             self._press(screen.challenge)
-            self._fight()
+            self._combat_mode = "raid"
+            try:
+                self._fight()
+            finally:
+                self._combat_mode = "campaign"
         self._fail("Raid did not run out of attempts")
 
     def patrol(self) -> str:
@@ -381,14 +402,6 @@ class Routine:
         log.info("No %s in the lobby menu, skipping", label.variants[0])
         return False
 
-    def _back_to_game(self) -> None:
-        """Back key until the game is in front again (it opened a browser)."""
-        for _ in range(config.BROWSER_BACK_MAX):
-            if self.device.foreground_package() == config.PACKAGE:
-                return
-            self.device.back()
-        self._fail("Could not get back to the game from the browser")
-
     def _back_to_modes(self) -> bool:
         """Back out of a mode (popups, ✕, ← arrows) to the modes list. False if it was not reached."""
         for _ in range(MAX_BACK_STEPS):
@@ -407,16 +420,36 @@ class Routine:
         log.info("Could not get back to the modes list")
         return False
 
-    def _fight(self, next_floor: bool = False) -> FightResult:
-        """Wait out a mode/raid fight, picking skills (Dojo, raid) by the build when asked. Never taps
-        "Skip": it opens a paid VIP offer. With `next_floor`, a tower win goes on with "Próximo piso"
-        (when shown) instead of "Confirmar"; the result's next_floor says which one was tapped."""
+    def _fight(self, next_floor: bool = False, *, auto_next: bool = False) -> FightResult:
+        """Play a mode fight, choosing skills when prompted and using Skip when offered.
+        With `next_floor`, a tower win goes on with "Próximo piso"
+        (when shown) instead of "Confirmar". With Auto Next Level, wait for the game's countdown."""
         deadline = time.monotonic() + config.MODE_FIGHT_TIMEOUT
         state, learned = BuildState(), None  # skills taken in this fight; the last offer learned
+        state.configure(self.build, self._combat_mode)
+        started = time.monotonic()
+        waiting_for_floor = False
+        skip = FightSkip(lambda point: self.device.tap(*point))
         while time.monotonic() < deadline:
             img, texts = self._capture()
+            if skip.dismiss_offer(img, texts):
+                time.sleep(config.POLL_INTERVAL)
+                continue
             result = parse_fight_result(texts)
+            if auto_next and result and result.victory and (result.next_floor or tower_auto_next_label(texts)):
+                if not waiting_for_floor:
+                    skip.reset()
+                    deadline = time.monotonic() + SCREEN_TIMEOUT
+                    waiting_for_floor = True
+                    log.info("Tower: waiting for the game to start the next floor")
+                time.sleep(config.POLL_INTERVAL)
+                continue
             if result:
+                if self._combat_mode in ("dojo", "raid"):
+                    damage, rewards = result_values(texts)
+                    History().record(RunRecord(self._combat_mode, self.build.profile, "completed",
+                        max(0., time.monotonic() - started), damage=damage, rewards=rewards,
+                        skills=list(state.taken), loadout=asdict(self.build.loadout), build_config=build_signature(self.build)))
                 log.info("Fight finished: %s", "victory" if result.victory else "defeat")
                 if not (next_floor and result.victory):
                     result = FightResult(result.victory, result.button)
@@ -424,23 +457,28 @@ class Routine:
                 if result.next_floor:  # the next fight follows: never read this win again on a stale frame
                     self._wait_change(lambda t: parse_fight_result(t) is None)
                 return result
+            if waiting_for_floor:
+                waiting_for_floor = False
+                deadline = time.monotonic() + config.MODE_FIGHT_TIMEOUT
             choice = parse_skill_choice(texts)
             if not choice:
+                skip.use(texts)
                 time.sleep(config.POLL_INTERVAL)
                 continue
             skills = self._choice_skills(texts, choice)
-            order = shop_order(skills, self.build, state, can_reroll=False)  # wanted first, then rarest
+            order = selection_order(skills, self.build, state)  # mandatory picks include useful fallbacks
             if choice.chosen < choice.needed:
                 if choice.chosen >= len(choice.cards):
                     self._fail("Skill cards not recognized", img)
                 skill = skills[order[choice.chosen]]
+                log.info("Mode skill decision: %s", state.explanation(skill, self.build))
                 log.info("Skill: %s (%s, %s, %s)", skill.name, skill.rarity, skill.damage_type or "-", skill.role or "-")
                 self.device.tap(*choice.cards[order[choice.chosen]])
             else:
                 offer = tuple(s.name for s in skills)
                 if offer != learned:  # the same offer again = the Learn tap did not land: count it once
                     for i in order[:choice.needed]:
-                        state.take(skills[i])
+                        state.take(skills[i], self.build)
                 learned = offer
                 self._tap(choice.learn)
         self._fail("Fight did not finish", img)
@@ -462,13 +500,33 @@ class Routine:
                 skills.append(Skill("?", None, rarities.get(y, ""), None, "", ""))
         return skills
 
-    def _tower_or_chest(self, texts: list[Text]):
-        """Tower screen, or (after clearing a whole tower) open the "Congrats" reward chest."""
-        if find(texts, L.TOWER_CLEARED):
-            log.info("Tower cleared: opening the reward chest")
-            self.device.tap(*config.TOWER_CHEST)
-            return None
-        return parse_tower(texts)
+    def _tower_screen(self):
+        """Open a pending clear chest and wait for the tower screen to return."""
+        cleared = False
+        retry_at = 0.
+
+        def parse(img, texts):
+            if cleared and find(texts, L.TAP_TO_CLAIM):
+                self.device.tap(*config.TOWER_CHEST_CLAIM)
+                return None
+
+            def read(t):
+                nonlocal cleared, retry_at
+                if find(t, L.TOWER_TITLE) and find(t, L.TOWER_CLEARED):
+                    cleared = True
+                    if time.monotonic() >= retry_at:
+                        log.info("Tower cleared: opening the reward chest")
+                        self.device.tap(*config.TOWER_CHEST)
+                        retry_at = time.monotonic() + PRESS_RETAP_AFTER
+                    return None
+                return parse_tower(t, img)
+
+            return self._claim_or(texts, read)
+
+        screen = self._wait_for(parse, "tower screen")
+        if cleared:
+            log.info("Tower: clear reward claimed")
+        return screen
 
     def _claim_or(self, texts: list[Text], parse: Callable):
         """Tap away reward popups ("Tap anywhere to claim") and popups that close by text (arena season
@@ -510,7 +568,8 @@ class Routine:
 
     def _capture(self) -> tuple:
         img = self.device.screenshot()
-        return img, self.ocr.read(img)
+        self._last_texts = self.ocr.read(img)
+        return img, self._last_texts
 
     def _tap(self, t: Text) -> None:
         self.device.tap(*t.center)
@@ -527,7 +586,7 @@ class Routine:
                 texts = self._capture()[1]
                 if left(texts) if left else not _still_there(button, texts):
                     return
-                if time.monotonic() > deadline:
+                if time.monotonic() >= deadline:
                     break
                 time.sleep(config.POLL_INTERVAL)
             if not _still_there(button, texts):

@@ -101,6 +101,13 @@ def test_dungeon_popup(ocr, name, difficulty, tickets, challenge, sweep, ad):
     assert (popup.challenge is not None, popup.sweep is not None, popup.ad is not None) == (challenge, sweep, ad)
 
 
+def test_pet_kingdom_ignores_a_challenge_button_behind_the_popup(ocr):
+    _, texts = load(ocr, "en_pets.png")
+    behind = Text("Challenge", 1050, 419, 1344, 498)
+    popup = parse_dungeon_popup([behind, *texts])
+    assert popup.tickets == 1 and popup.challenge.center == (943, 1847)
+
+
 @pytest.mark.parametrize("name", ["en_mines_ad_reward.png", "en_mines_sweep_reward.png"])
 def test_dungeon_reward_popup_is_claimed_not_parsed(ocr, name):
     _, texts = load(ocr, name)
@@ -392,6 +399,14 @@ def test_dojo_with_a_ticket(ocr):
     img, texts = load(ocr, "dojo.png")
     screen = parse_dojo(img, texts, ocr)
     assert screen.tickets == 1 and screen.challenge is not None and screen.chest is None
+
+
+def test_dojo_reads_the_last_ticket_from_the_wider_badge_crop(ocr):
+    labels.set_language("en")
+    img = fixture_image(FIXTURES / "dojo.png")
+    img[40:145, 1210:1440] = fixture_image(FIXTURES / "en_dojo_one_ticket_badge.png")
+    texts = [Text("Dojo Battle", 512, 215, 930, 285), Text("Challenge", 592, 2380, 846, 2454)]
+    assert parse_dojo(img, texts, ocr).tickets == 1
 
 
 def test_dojo_without_tickets_shows_the_progress_chest(ocr):

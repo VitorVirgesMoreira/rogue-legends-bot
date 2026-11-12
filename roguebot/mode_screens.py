@@ -234,12 +234,45 @@ def pick_opponent(own_power: int, opponents: list[Opponent]) -> Opponent | None:
 
 
 @dataclass(frozen=True)
+class TowerAutoNext:
+    point: tuple[int, int]
+    checked: bool
+
+
+def tower_auto_next_label(texts: list[Text]) -> Text | None:
+    return next((t for t in texts if 2000 < t.center[1] < 2350 and matches(t, L.TOWER_AUTO_NEXT)), None)
+
+
+def _tower_auto_next(img: np.ndarray | None, texts: list[Text]) -> TowerAutoNext | None:
+    label = tower_auto_next_label(texts)
+    if img is None or label is None:
+        return None
+    # "Auto Next / Level" wraps beside the box. Spanish puts "Avance"
+    # on the first of three lines, with the checkbox centred on the second.
+    x = label.x1 - 42
+    y = label.center[1] + (34 if label.norm in ("avance", "avanco") else 24)
+    size = 20
+    patch = img[y-size:y+size, x-size:x+size]
+    if patch.shape[:2] != (size * 2, size * 2):
+        return None
+    hsv = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV)
+    green = cv2.inRange(hsv, (36, 75, 145), (91, 255, 255))
+    if (green > 0).mean() >= .20:
+        return TowerAutoNext((x, y), True)
+    purple = cv2.inRange(hsv, (109, 65, 42), (163, 255, 220))
+    if (purple > 0).mean() >= .70:
+        return TowerAutoNext((x, y), False)
+    return None
+
+
+@dataclass(frozen=True)
 class TowerScreen:
     challenge: Text
     tickets: int
+    auto_next: TowerAutoNext | None = None
 
 
-def parse_tower(texts: list[Text]) -> TowerScreen | None:
+def parse_tower(texts: list[Text], img: np.ndarray | None = None) -> TowerScreen | None:
     """Tower main screen: tickets are the top-bar counter "13/10" (it can exceed the max)."""
     button = _bottom_challenge(texts)
     if not (find(texts, L.TOWER_TITLE) and button):
@@ -247,7 +280,7 @@ def parse_tower(texts: list[Text]) -> TowerScreen | None:
     for t in texts:
         m = _RATIO_RE.match(t.norm)
         if m and t.center[1] < config.TOP_BAR_MAX_Y:
-            return TowerScreen(button, int(m.group(1)))
+            return TowerScreen(button, int(m.group(1)), _tower_auto_next(img, texts))
     return None
 
 
@@ -266,9 +299,15 @@ def parse_dojo(img: np.ndarray, texts: list[Text], ocr: Ocr) -> DojoScreen | Non
     digits = [t for t in ocr.read(img, config.DOJO_TICKETS_REGION) if t.norm.isdigit()]
     if not digits:
         return None
+    tickets = int(digits[0].norm)
     chest = next((t for t in texts if matches(t, L.DOJO_CHEST, exact=True)
                   and config.DOJO_CHEST_Y[0] < t.center[1] < config.DOJO_CHEST_Y[1]), None)
-    return DojoScreen(_bottom_challenge(texts), int(digits[0].norm), chest)
+    challenge = _bottom_challenge(texts)
+    if tickets and challenge is None and chest is None:
+        challenge = _bottom_challenge(ocr.read(img, (480, 2320, 960, 2540)))
+        if challenge is None:
+            return None
+    return DojoScreen(challenge, tickets, chest)
 
 
 @dataclass(frozen=True)
@@ -323,14 +362,19 @@ def parse_dungeon_popup(texts: list[Text]) -> DungeonPopup | None:
     diff = find(texts, L.DIFFICULTY)
     if not (diff and (find(texts, L.MINES) or find(texts, L.PETS))):
         return None
-    tickets = next((int(m.group(1)) for t in texts if (m := _RATIO_RE.match(t.norm))
-                    and config.DUNGEON_TICKETS_Y[0] < t.center[1] < config.DUNGEON_TICKETS_Y[1]), None)
-    if tickets is None:
+    # The green ticket icon can be joined to the ratio by OCR, e.g. "日0/3".
+    counts = [(t, int(m[1])) for t in texts if config.DUNGEON_TICKETS_Y[0] < t.center[1] < config.DUNGEON_TICKETS_Y[1]
+              and abs(t.center[0] - diff.center[0]) < 200
+              and (m := re.search(r"(\d+)\s*/\s*\d+$", t.norm))]
+    if not counts:
         return None
+    counter, tickets = min(counts, key=lambda pair: abs(pair[0].center[0] - diff.center[0]))
+    buttons = [t for t in texts if 0 < t.center[1] - counter.center[1] < 250
+               and abs(t.center[0] - diff.center[0]) < 500]
     level = next((int(t.norm) for t in texts if t.norm.isdigit()
                   and 0 < diff.center[1] - t.center[1] < 150 and abs(t.center[0] - diff.center[0]) < 100), None)
-    return DungeonPopup(level, tickets, find(texts, L.CHALLENGE, exact=True), find(texts, L.SWEEP),
-                        find(texts, L.AD_TICKETS))
+    return DungeonPopup(level, tickets, find(buttons, L.CHALLENGE, exact=True), find(buttons, L.SWEEP),
+                        find(buttons, L.AD_TICKETS) if tickets == 0 else None)
 
 
 @dataclass(frozen=True)
@@ -392,7 +436,14 @@ def parse_fight_result(texts: list[Text]) -> FightResult | None:
     if not button:
         return None
     if find(texts, L.VICTORY):
-        return FightResult(True, button, find(texts, L.TOWER_NEXT_FLOOR))
+        next_floor = find(texts, L.TOWER_NEXT_FLOOR)
+        if next_floor is None and find(texts, L.TOWER_TITLE):
+            # The newer result shows "Next (2)" next to OK. Match a button
+            # in that row, not the separate "Auto Next Level" label.
+            next_floor = next((t for t in texts
+                               if t.center[0] > button.center[0] and abs(t.center[1] - button.center[1]) < 70
+                               and re.sub(r"\s*\(\d+\)$", "", t.norm) in L.TOWER_NEXT.variants), None)
+        return FightResult(True, button, next_floor)
     if find(texts, L.DEFEAT):
         return FightResult(False, button)
     return None

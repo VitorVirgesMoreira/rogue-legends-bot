@@ -12,6 +12,7 @@ STARS = "stars"
 BEATEN = "beaten"
 PENDING = "pending"  # beaten levels that still miss stars, then the last beaten one
 FARM = "farm"
+ROUTINE_CHOICES = ("vip", "arena", "dojo", "tower", "dive", "mines", "pets")
 
 
 def positive_integer(value: str | int) -> int | None:
@@ -43,8 +44,13 @@ class RunRequest:
     elite_energy: int | None = None  # None: highest affordable cost; otherwise exactly 5/10/15
     farm: bool = False
     farm_objective: str = "reliable"
+    claim_events: bool = True
+    routine_parts: tuple[str, ...] | None = None  # None preserves the legacy full flag
 
     def __post_init__(self) -> None:
+        if self.routine_parts is not None and (
+                not isinstance(self.routine_parts, tuple) or any(part not in ROUTINE_CHOICES for part in self.routine_parts)):
+            raise ValueError("bad_routine_parts")
         if self.elite_energy is not None and (not isinstance(self.elite_energy, int) or isinstance(self.elite_energy, bool)
                                                or self.elite_energy not in config.ELITE_COSTS):
             raise ValueError("bad_elite_energy")
@@ -76,7 +82,10 @@ def build_request(mode: str, source: str, level: str, full: bool = False, build:
         raise ValueError("bad_elite_energy")
     common = dict(repeat=True, full=full, build=build, mumu_folder=mumu_folder, loop=loop, ads=ads,
                   provider=provider, adb_path=adb_path.strip(), device_serial=device_serial.strip(), elite_energy=cost,
-                  farm_objective=farm_objective)
+                  farm_objective=farm_objective, claim_events=claim_events, routine_parts=routine_parts)
+    if mode in (Mode.CHAOS.value, Mode.CONQUEST.value):
+        common.update(full=False, loop=False, repeat=False, routine_parts=())
+        return RunRequest(Mode(mode), None, **common)
     if source == FARM:
         return RunRequest(Mode(mode), None, farm=True, **common)
     if source in (LATEST, BEATEN, PENDING):

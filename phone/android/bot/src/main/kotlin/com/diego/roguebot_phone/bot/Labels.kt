@@ -112,7 +112,7 @@ object L {
     val MENU_DAILY = l(listOf("diarias", "recompensas diarias"), listOf("daily", "daily rewards"))
     val MENU_MAIL = l("correo", "mail")
     val DAILY_TITLE = l("recompensas diarias", "daily rewards")
-    val DAILY_CLAIM = l("reclamar", "claim")
+    val DAILY_CLAIM = l(listOf("reclamar"), listOf("claim", "claim rewards"))
     val DAILY_WEB_CLAIM = l("reclamar ahora", "claim now")
     val MAIL_TITLE = l("correo", "mail")
     val VIP_CARDS = l(listOf("tarjetas vip", "tarjetas", "vip"), listOf("vip cards", "cards", "vip"))

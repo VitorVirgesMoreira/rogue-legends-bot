@@ -2121,26 +2121,7 @@
 ],
 "regions": {},
 "out": {
-"parse_lobby": {
-"mode": "normal",
-"level_title": "18. Picos Helados III",
-"start_button": [
-"INICIO",
-534,
-2052,
-783,
-2134
-],
-"stars_button": [
-"Patrulla de Estrellas",
-648,
-1903,
-991,
-1947
-],
-"energy": 34,
-"has_elite": false
-},
+"parse_lobby": null,
 "is_star_list": false,
 "parse_energy": 34,
 "parse_elite_dialog": null,
@@ -8293,6 +8274,352 @@
 "mode_entry_PETS": null,
 "mode_closed_PETS": null,
 "detect_language": null
+}
+},
+"en_daily_rewards.png": {
+"lang": "en",
+"texts": [
+[
+"49/36",
+788,
+61,
+919,
+107
+],
+[
+"5610",
+1045,
+61,
+1152,
+107
+],
+[
+"75500",
+1278,
+61,
+1409,
+107
+],
+[
+"Season 24",
+389,
+201,
+567,
+241
+],
+[
+"50/60",
+576,
+307,
+687,
+347
+],
+[
+"7d 12h",
+1305,
+336,
+1409,
+372
+],
+[
+"Starter",
+15,
+504,
+141,
+544
+],
+[
+"Quests",
+1301,
+507,
+1422,
+543
+],
+[
+"Pack",
+32,
+541,
+127,
+585
+],
+[
+"47. Shifting Sands VII",
+408,
+539,
+1027,
+619
+],
+[
+"Longest journey: 65 tiles",
+450,
+633,
+988,
+696
+],
+[
+"arnival",
+1308,
+649,
+1424,
+676
+],
+[
+"Cards",
+36,
+709,
+129,
+740
+],
+[
+"Hero Event",
+1262,
+814,
+1438,
+856
+],
+[
+"5h 16m",
+30,
+851,
+131,
+886
+],
+[
+"Daily Rewards",
+505,
+872,
+933,
+953
+],
+[
+"5h 16m",
+1307,
+983,
+1413,
+1014
+],
+[
+"Marble",
+16,
+1023,
+144,
+1059
+],
+[
+"Road",
+32,
+1056,
+127,
+1089
+],
+[
+"Claim Rewards",
+554,
+1141,
+991,
+1215
+],
+[
+"5h 16m",
+1302,
+1138,
+1413,
+1176
+],
+[
+"5h 16m",
+25,
+1212,
+135,
+1251
+],
+[
+"7h 16m",
+1298,
+1303,
+1415,
+1343
+],
+[
+"Enter Code",
+558,
+1358,
+882,
+1428
+],
+[
+"5h 16m",
+1302,
+1452,
+1413,
+1494
+],
+[
+"Frozen",
+1296,
+1616,
+1423,
+1659
+],
+[
+"Riches",
+1299,
+1658,
+1419,
+1696
+],
+[
+"Chapter",
+468,
+1863,
+610,
+1905
+],
+[
+"iStari",
+825,
+1860,
+981,
+1903
+],
+[
+"Rewards",
+461,
+1904,
+617,
+1943
+],
+[
+"Patrol",
+659,
+1905,
+775,
+1940
+],
+[
+"Challenge",
+813,
+1900,
+988,
+1949
+],
+[
+"START",
+527,
+2050,
+790,
+2139
+],
+[
+"X5",
+655,
+2135,
+723,
+2185
+],
+[
+"Guild",
+43,
+2160,
+138,
+2197
+],
+[
+"Modes",
+1283,
+2156,
+1414,
+2198
+],
+[
+"Adventure",
+630,
+2449,
+810,
+2491
+]
+],
+"regions": {},
+"out": {
+"parse_lobby": null,
+"is_star_list": false,
+"parse_energy": 49,
+"parse_elite_dialog": null,
+"parse_energy_popup": null,
+"update_required": false,
+"resume_prompt": null,
+"on_board": false,
+"is_loading": false,
+"close_button": [
+720,
+1661
+],
+"tutorial_hand": null,
+"footer_visible": false,
+"popup_close": null,
+"lobby_behind": true,
+"outside_tap_clear": true,
+"classify_level_screen": {
+"kind": "unknown",
+"tap": null
+},
+"game_speed": null,
+"dice_ready": false,
+"dice_auto": false,
+"parse_star_list": null,
+"parse_skill_cards": [],
+"skill_reroll": null,
+"parse_money": null,
+"parse_shop": null,
+"parse_fortune_teller": null,
+"back_arrow": null,
+"in_guild": true,
+"vip_cards_icon": [
+"Cards",
+36,
+709,
+129,
+740
+],
+"vip_claim_all": null,
+"guild_hall": null,
+"guild_hall_donate": null,
+"free_donation": null,
+"parse_patrol": null,
+"parse_quick_patrol": null,
+"is_modes_list": false,
+"parse_arena": null,
+"parse_arena_opponents": null,
+"parse_tower": null,
+"parse_dojo": null,
+"parse_dive": null,
+"menu_daily": null,
+"menu_mail": null,
+"daily_claim": [
+"Claim Rewards",
+554,
+1141,
+991,
+1215
+],
+"mail_claim_all": null,
+"parse_dungeon_popup": null,
+"parse_raid": null,
+"parse_skill_choice": null,
+"parse_fight_result": null,
+"mode_entry_ARENA": null,
+"mode_closed_ARENA": null,
+"mode_entry_DOJO": null,
+"mode_closed_DOJO": null,
+"mode_entry_TOWER": null,
+"mode_closed_TOWER": null,
+"mode_entry_DIVE": null,
+"mode_closed_DIVE": null,
+"mode_entry_MINES": null,
+"mode_closed_MINES": null,
+"mode_entry_PETS": null,
+"mode_closed_PETS": null,
+"detect_language": "en"
 }
 },
 "en_elite_dialog_x5.png": {

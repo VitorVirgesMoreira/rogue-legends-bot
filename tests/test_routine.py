@@ -1,7 +1,5 @@
 """Full routine behaviour with fake screens (no device)."""
 
-import itertools
-
 import pytest
 
 from roguebot import labels, routine
@@ -13,17 +11,9 @@ from roguebot.vision import Text
 class FakeDevice:
     def __init__(self):
         self.taps = []
-        self.backs = 0
-        self.apps = []  # foreground packages to report in order (then the game)
 
     def tap(self, x, y, settle=0):
         self.taps.append((x, y))
-
-    def back(self, settle=0):
-        self.backs += 1
-
-    def foreground_package(self):
-        return self.apps.pop(0) if self.apps else routine.config.PACKAGE
 
     def screenshot(self):
         return None
@@ -73,14 +63,14 @@ def test_failed_part_is_reported_and_the_next_one_runs(monkeypatch):
     monkeypatch.setattr(r, "vip", lambda: routine.DONE)
     monkeypatch.setattr(r, "donate", lambda: routine.DONE)
     monkeypatch.setattr(r, "patrol", lambda: routine.DONE)
-    for part in ("daily", "mail", "dojo", "dive"):
+    for part in ("mail", "dojo", "dive"):
         monkeypatch.setattr(r, part, lambda: routine.DONE)
     results = r.run_parts()
-    assert results == [("vip", "done"), ("daily", "done"), ("mail", "done"), ("patrol", "done"), ("arena", "failed"),
+    assert results == [("vip", "done"), ("mail", "done"), ("patrol", "done"), ("arena", "failed"),
                        ("dojo", "done"), ("tower", "done"), ("dive", "done"), ("mines", "done"), ("pets", "done"),
                        ("raid", "skipped"), ("donate", "done")]
     assert ran == ["ok"]
-    assert r.nav.lobby_visits == 7  # stays in the modes tab; lobby after VIP, daily, mail, patrol, modes, raid, donation
+    assert r.nav.lobby_visits == 6  # stays in the modes tab; lobby after VIP, mail, patrol, modes, raid, donation
 
 
 def skill_screen(chosen, needed, rarities):
@@ -100,11 +90,28 @@ def test_fight_picks_best_skills_then_learns_then_waits_for_result():
     assert r.device.taps == [(800, mythic_y), (800, legendary_y), (890, 2150), (720, 2325)]
 
 
-def test_fight_never_taps_skip():
-    fight = [Text("VS", 700, 120, 740, 160), Text("Skip", 860, 2400, 980, 2450)]
-    r = make([fight, fight, [Text("VICTORY!", 600, 1060, 840, 1110), Text("OK", 680, 2090, 760, 2140)]])
+def vip_skip(skip="Skip", active="Active"):
+    return [Text(skip, 860, 2400, 980, 2450), Text("VIP", 1190, 2250, 1250, 2300),
+            Text(active, 1170, 2310, 1270, 2350)]
+
+
+VICTORY = [Text("VICTORY!", 600, 1060, 840, 1110), Text("OK", 680, 2090, 760, 2140)]
+
+
+@pytest.mark.parametrize("badge", [True, False])
+def test_fight_taps_skip_regardless_of_the_vip_badge(badge):
+    fight = vip_skip() if badge else vip_skip()[:1]
+    r = make([fight, fight, VICTORY])
     assert r._fight().victory
-    assert r.device.taps == [(720, 2115)]
+    assert r.device.taps == [(920, 2425), (720, 2115)]
+
+
+def test_fight_closes_a_vip_offer_if_skip_is_not_available():
+    offer = [Text("VIP Card", 560, 380, 880, 440),
+             Text("Tap anywhere to close", 480, 2400, 960, 2460)]
+    r = make([vip_skip(), offer, vip_skip(), VICTORY])
+    assert r._fight().victory
+    assert r.device.taps == [(920, 2425), (720, 2430), (720, 2115)]
 
 
 def dungeon(tickets, ad=False, buttons=True):
@@ -132,6 +139,18 @@ def test_dungeon_challenges_then_sweeps_after_defeat_and_watches_ads(monkeypatch
     assert r.dungeon(labels.MINES) == routine.DONE
     challenge, sweep, ad, cont, claim = (943, 1847), (495, 1820), (720, 1812), (717, 2330), (720, 2322)
     assert r.device.taps == [challenge, cont, sweep, claim, ad, claim, sweep, claim]
+
+
+def test_pet_kingdom_waits_for_the_video_ticket_before_challenging(monkeypatch):
+    ad = dungeon(0, ad=True, buttons=False)
+    ad[0] = Text("Pet Kingdom", 560, 450, 880, 500)
+    ad[3] = Text("日0/3", 600, 1695, 790, 1735)
+    with_ticket = dungeon(1)
+    with_ticket[0] = ad[0]
+    r = make([ad, ad, CLAIM, with_ticket, LOADING, vip_skip()[:1], VICTORY, dungeon(0)], ads=True)
+    monkeypatch.setattr(r, "_open_mode", lambda label: True)
+    assert r.dungeon(labels.PETS) == routine.DONE
+    assert r.device.taps == [(720, 1812), (720, 2322), (943, 1847), (920, 2425), (720, 2115)]
 
 
 MODES_TOP = [Text("Arena", 1250, 240, 1360, 290), Text("Tower Challenge", 1000, 1020, 1300, 1070)]
@@ -207,7 +226,7 @@ def test_tower_opens_the_cleared_tower_chest(monkeypatch):
     r = make([CONGRATS, CONGRATS + CLAIM, TOWER, LOADING, DEFEAT, TOWER])
     monkeypatch.setattr(r, "_open_mode", lambda label: None)
     assert r.tower() == routine.DONE
-    assert r.device.taps[:3] == [routine.config.TOWER_CHEST, (720, 2322), (720, 2417)]  # chest, claim, Challenge
+    assert r.device.taps[:3] == [routine.config.TOWER_CHEST, routine.config.TOWER_CHEST_CLAIM, (720, 2417)]
 
 
 def test_closed_arena_is_skipped_without_tapping():
@@ -349,7 +368,7 @@ def test_open_mode_waits_for_the_list_to_stop_after_scrolling():
 def test_a_stuck_lobby_between_parts_does_not_abort_the_routine(monkeypatch):
     """Review: go_to_lobby raising between parts used to skip every remaining part."""
     r = make([])
-    for part in ("vip", "daily", "mail", "arena", "dojo", "tower", "dive", "patrol", "raid", "donate"):
+    for part in ("vip", "mail", "arena", "dojo", "tower", "dive", "patrol", "raid", "donate"):
         monkeypatch.setattr(r, part, lambda: routine.DONE)
     monkeypatch.setattr(r, "dungeon", lambda label: routine.DONE)
     monkeypatch.setattr(r, "_back_to_modes", lambda: True)
@@ -387,7 +406,7 @@ def test_without_ads_dungeon_tickets_and_quick_patrol_videos_are_skipped(monkeyp
     assert r.device.taps == [(720, 1922), (495, 1775)]  # patrol, quick patrol; not its video
 
 
-# --- Dojo Battle, Dungeon Dive, daily rewards, mail (2026-10-13) ---
+# --- Dojo Battle, Dungeon Dive, mail ---
 
 def fake_dojo(img, texts, ocr):
     """parse_dojo without the ticket crop: fake screens say "tickets N"."""
@@ -412,11 +431,12 @@ def test_dojo_fights_while_there_are_tickets_and_claims_the_chest(monkeypatch):
     monkeypatch.setattr(routine, "parse_dojo", fake_dojo)
     monkeypatch.setattr(routine.config, "UI_SETTLE", 0)
     victory = [Text("VICTORIA", 600, 1000, 830, 1055), Text("Confirmar", 534, 2280, 905, 2367)]
-    r = make([dojo(2), LOADING, victory, dojo(1), LOADING, victory, dojo(0, chest=True), CLAIM_ES, dojo(0)])
+    fight = vip_skip("Saltar", "Activo")
+    r = make([dojo(2), LOADING, fight, victory, dojo(1), LOADING, fight, victory, dojo(0, chest=True), CLAIM_ES, dojo(0)])
     monkeypatch.setattr(r, "_open_mode", lambda label: True)
     assert r.dojo() == routine.DONE
     challenge, confirm, chest = (720, 2415), (719, 2323), (388, 2148)
-    assert r.device.taps == [challenge, confirm, challenge, confirm, chest, (720, 2320)]
+    assert r.device.taps == [challenge, (920, 2425), confirm, challenge, (920, 2425), confirm, chest, (720, 2320)]
 
 
 def test_dojo_without_tickets_taps_nothing(monkeypatch):
@@ -445,38 +465,12 @@ def test_dive_plays_a_level_per_ticket_win_or_lose(monkeypatch):
 
 ES_MENU = ES_LOBBY + [Text("Correo", 336, 449, 461, 498), Text("Recompensas", 320, 1040, 480, 1070),
                       Text("Diarias", 349, 1068, 446, 1100)]
-DAILY_POPUP = [Text("Recompensas Diarias", 420, 880, 1020, 935), Text("Reclamar", 551, 1138, 842, 1218),
-               Text("Introducir Código", 470, 1360, 970, 1430)]
-WEB_PAGE = [Text("roguelegend.io", 220, 130, 390, 170), Text("TIENDA", 780, 310, 890, 350),
-            Text("Reclamar ahora!", 824, 1392, 1154, 1438)]
-
-
-def test_daily_rewards_claims_on_the_web_page_and_goes_back_to_the_game(monkeypatch):
+def test_mail_is_skipped_when_the_menu_never_opens(monkeypatch):
     labels.set_language("es")
-    monkeypatch.setattr(routine.config, "VIDEO_SETTLE", 0)
-    r = make([ES_LOBBY, ES_MENU, DAILY_POPUP, WEB_PAGE])
-    r.device.apps = ["com.android.chromium", "com.android.chromium"]  # Back twice: page history, then the game
-    assert r.daily() == routine.DONE
-    assert r.device.taps == [routine.config.MENU_BUTTON, (397, 1084), (696, 1178), (989, 1415)]
-    assert r.device.backs == 2
-
-
-def test_daily_rewards_goes_back_to_the_game_even_without_the_web_claim(monkeypatch):
-    """Another account may not be logged in on the web store: no "Reclamar ahora!"."""
-    labels.set_language("es")
-    monkeypatch.setattr(routine, "SCREEN_TIMEOUT", 0.05)
-    login = [Text("roguelegend.io", 220, 130, 390, 170), Text("Iniciar sesión", 500, 1200, 900, 1260)]
-    r = make(itertools.chain([ES_LOBBY, ES_MENU, DAILY_POPUP], itertools.repeat(login)))
-    r.device.apps = ["com.android.chromium"]
-    with pytest.raises(NavigationError):
-        r.daily()
-    assert r.device.backs == 1 and (989, 1415) not in r.device.taps
-
-
-def test_menu_entry_missing_skips_the_part(monkeypatch):
-    labels.set_language("es")
-    r = make([ES_LOBBY, ES_MENU[:-2]])  # menu without "Recompensas Diarias"
-    assert r.daily() == routine.SKIPPED
+    r = make([])
+    monkeypatch.setattr(r, "_capture", lambda: (None, ES_LOBBY))
+    monkeypatch.setattr(routine, "SCREEN_TIMEOUT", 0.01)
+    assert r.mail() == routine.SKIPPED
     assert r.device.taps == [routine.config.MENU_BUTTON]
 
 
@@ -562,8 +556,8 @@ def test_dojo_and_raid_skill_picks_follow_the_build(tmp_path):
     r.build = Build(nature=MAGIC, order=("fire", "ice", "lightning", "shuriken", "venom", "bleed"))
     r.catalog = Catalog(tmp_path / "skills.json")
     r._fight()
-    fire_y, ice_y = 755 + 306 + 90, 755 + 306 * 3 + 90
-    assert r.device.taps[:2] == [(800, fire_y), (800, ice_y)]  # magic, fire first: not the rarest cards
+    fire_y, atk_y = 755 + 306 + 90, 755 + 306 * 2 + 90
+    assert r.device.taps[:2] == [(800, fire_y), (800, atk_y)]  # fire, then neutral ATK instead of another element
     assert set(r.catalog.skills) >= {"fireball", "iceshard", "superflash", "glasscannon"}  # learned by the catalog
 
 
@@ -578,14 +572,14 @@ def test_run_parts_resumes_after_a_restart_at_the_part_that_broke(monkeypatch):
                 raise error
             return routine.DONE
         return run
-    for name in ("vip", "daily", "mail", "arena", "dojo", "dive", "patrol", "raid", "donate"):
+    for name in ("vip", "mail", "arena", "dojo", "dive", "patrol", "raid", "donate"):
         monkeypatch.setattr(r, name, part(name))
     monkeypatch.setattr(r, "tower", part("tower", RuntimeError("emulator froze")))
     monkeypatch.setattr(r, "dungeon", lambda label: routine.DONE)
-    progress = {}
+    progress = routine.RoutineProgress()
     with pytest.raises(RuntimeError):
         r.run_parts(progress)  # first attempt: the emulator froze in the tower
-    assert progress["parts"][-1] == ("dojo", "done") and calls[-1] == "tower"
+    assert progress.parts[-1] == ("dojo", "done") and calls[-1] == "tower"
     calls.clear()
     monkeypatch.setattr(r, "tower", part("tower"))
     results = r.run_parts(progress)  # after the restart: from the tower on, nothing done twice
@@ -595,23 +589,23 @@ def test_run_parts_resumes_after_a_restart_at_the_part_that_broke(monkeypatch):
 
 def test_a_part_that_keeps_breaking_the_run_is_marked_failed(monkeypatch):
     r = make([MODES_TOP] * 40)
-    for name in ("vip", "daily", "mail", "arena", "dojo", "dive", "patrol", "raid", "donate", "tower"):
+    for name in ("vip", "mail", "arena", "dojo", "dive", "patrol", "raid", "donate", "tower"):
         monkeypatch.setattr(r, name, lambda: routine.DONE)
     monkeypatch.setattr(r, "dungeon", lambda label: (_ for _ in ()).throw(RuntimeError("frozen")))
-    progress = {}
+    progress = routine.RoutineProgress()
     for _ in range(routine.PART_RESTARTS + 1):
         with pytest.raises(RuntimeError):
             r.run_parts(progress)
     with pytest.raises(RuntimeError):  # mines skipped as failed; pets (same fake) breaks next
         r.run_parts(progress)
-    assert ("mines", "failed") in progress["parts"]
+    assert ("mines", "failed") in progress.parts
 
 
 def test_a_failed_part_left_stuck_restarts_and_resumes_at_the_next_part(monkeypatch):
     """A part that fails where the lobby can't be reached any more (a screen nothing recognizes) used to
     make every following part fail too; now the run restarts the emulator and goes on with the next part."""
     r = make([])
-    for part in ("vip", "daily", "mail", "dojo", "tower", "dive", "patrol", "raid", "donate"):
+    for part in ("vip", "mail", "dojo", "tower", "dive", "patrol", "raid", "donate"):
         monkeypatch.setattr(r, part, lambda: routine.DONE)
     monkeypatch.setattr(r, "dungeon", lambda label: routine.DONE)
     monkeypatch.setattr(r, "arena", lambda: (_ for _ in ()).throw(NavigationError("Expected the arena screen")))
@@ -620,10 +614,38 @@ def test_a_failed_part_left_stuck_restarts_and_resumes_at_the_next_part(monkeypa
     def stuck():
         raise NavigationError("Could not reach the Aventura lobby")
     r.nav.go_to_lobby = stuck
-    progress = {}
+    progress = routine.RoutineProgress()
     with pytest.raises(routine.StuckError):
         r.run_parts(progress)
-    assert progress["parts"][-1] == ("arena", "failed")
+    assert progress.parts[-1] == ("arena", "failed")
     r.nav.go_to_lobby = lambda: None  # after the restart
     results = r.run_parts(progress)
     assert [p for p, _ in results] == list(routine.PARTS)
+
+
+def test_selected_parts_ignore_daily_rewards_and_use_game_order(monkeypatch):
+    r = make([MODES_TOP])
+    called = []
+    monkeypatch.setattr(r, "vip", lambda: called.append("vip") or routine.DONE)
+    monkeypatch.setattr(r, "tower", lambda: called.append("tower") or routine.DONE)
+    monkeypatch.setattr(r, "dungeon", lambda label: called.append(label) or routine.DONE)
+
+    assert r.run_parts(only=("pets", "daily", "tower", "vip")) == [
+        ("vip", "done"), ("tower", "done"), ("pets", "done"),
+    ]
+    assert called == ["vip", "tower", labels.PETS]
+    assert r.nav.lobby_visits == 2  # after VIP and after Pet Kingdom
+
+
+def test_routine_does_not_reuse_a_previous_activity_timer(monkeypatch):
+    r = make([])
+    monkeypatch.setattr(routine.time, "time", lambda: 100)
+
+    def vip():
+        r._last_texts = [Text("Refreshes in 2h", 100, 100, 200, 140)]
+        return routine.DONE
+
+    monkeypatch.setattr(r, "vip", vip)
+    monkeypatch.setattr(r, "mail", lambda: routine.DONE)
+    r.run_parts(only=("vip", "mail"))
+    assert r.schedule.due_at == {"vip": 7300, "mail": 100 + r.schedule.default_poll}
