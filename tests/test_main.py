@@ -2,7 +2,7 @@
 
 import pytest
 
-import roguebot.__main__ as main
+import roguebot.runner as main
 from roguebot.emulator import EmulatorError
 from roguebot.request import RunRequest
 from roguebot.screens import Mode
