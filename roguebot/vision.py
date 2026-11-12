@@ -94,6 +94,12 @@ def _without_spinning(build_options):
 OrtInferSession._init_sess_opts = _without_spinning(OrtInferSession._init_sess_opts)
 
 
+@dataclass(frozen=True)
+class OcrResult:
+    texts: list[Text]
+    scores: tuple[float, ...]
+
+
 class Ocr:
     def __init__(self, threads: int = config.OCR_THREADS):  # tests in parallel share the cores
         # No angle classifier: the game's text is never upside down, and it turned short texts around
@@ -103,16 +109,21 @@ class Ocr:
 
     def read(self, img: np.ndarray, region: tuple[int, int, int, int] | None = None) -> list[Text]:
         """OCR the image, or only region=(x1, y1, x2, y2). Coordinates are always full-frame."""
+        return self.read_result(img, region).texts
+
+    def read_result(self, img: np.ndarray, region: tuple[int, int, int, int] | None = None) -> OcrResult:
+        """Texts and native confidence scores from a single OCR pass, in full-frame coordinates."""
         ox, oy = 0, 0
         if region:
             x1, y1, x2, y2 = region
             img, ox, oy = img[y1:y2, x1:x2], x1, y1
         result = self._engine(img)
         if result.boxes is None:
-            return []
+            return OcrResult([], ())
         texts = []
         for box, txt in zip(result.boxes, result.txts):
             xs, ys = box[:, 0], box[:, 1]
             texts.append(Text(txt, int(xs.min()) + ox, int(ys.min()) + oy,
                               int(xs.max()) + ox, int(ys.max()) + oy))
-        return texts
+        scores = tuple(float(score) for score in result.scores) if result.scores is not None else ()
+        return OcrResult(texts, scores)

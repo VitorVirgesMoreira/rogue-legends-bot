@@ -9,11 +9,12 @@ import logging
 import os
 import subprocess
 import threading
-import time
 from pathlib import Path
 from typing import Callable
 
 from roguebot import config
+from roguebot.device import focused_package
+from roguebot.polling import wait_for
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +22,8 @@ TOOL_DIRS = ("nx_main", "shell")  # MuMu Player 12 layouts (current, older)
 INSTALL_GUESSES = (r"Netease\MuMuPlayer", r"Netease\MuMuPlayer-12.0", r"Netease\MuMu Player 12", "MuMuPlayer")
 
 
-PERMANENT_ERRORS = ("err_mumu_folder", "err_game_missing", "err_game_update")  # restarting cannot fix these
+PERMANENT_ERRORS = ("err_mumu_folder", "err_game_missing", "err_game_update", "err_google_adb",
+                    "err_adb_path", "err_provider", "err_manual_setup")
 
 
 class EmulatorError(Exception):
@@ -96,11 +98,16 @@ class Emulator:
     `stop` are injectable for tests; waits end early (raising device.Stopped) once `stop` is set."""
 
     def __init__(self, folder: str | Path, stop: threading.Event | None = None,
-                 run: Callable[[list[str], float], str] = _run):
+                 run: Callable[[list[str], float], str] = _run, *, adb_path: str = "", serial: str = ""):
         found = tools(folder) if str(folder).strip() else None
         if not found:
             raise EmulatorError("err_mumu_folder", folder=str(folder))
         self.manager, self.adb = (str(p) for p in found)
+        if adb_path:
+            if not Path(adb_path).is_file():
+                raise EmulatorError("err_adb_path", path=adb_path)
+            self.adb = adb_path
+        self.serial = serial.strip()
         self.stop = stop
         self.run = run
 
@@ -110,13 +117,13 @@ class Emulator:
         if not info.get("is_android_started"):
             log.info("Starting MuMu Player")
             self.run([self.manager, "control", "-v", "0", "launch"], 60)
-            info = self._wait(lambda: (i := self._info()).get("is_android_started") and
-                              i.get("player_state") == "start_finished" and i, config.EMULATOR_BOOT_TIMEOUT)
+            info = wait_for(lambda: (i := self._info()).get("is_android_started") and
+                            i.get("player_state") == "start_finished" and i, config.EMULATOR_BOOT_TIMEOUT, self.stop)
             if not info:
                 raise EmulatorError("err_mumu_boot", seconds=config.EMULATOR_BOOT_TIMEOUT)
-        serial = f"{info.get('adb_host_ip') or '127.0.0.1'}:{info.get('adb_port') or config.SERIAL.split(':')[1]}"
-        if "connected" not in self.run([self.adb, "connect", serial], 30) or not self._wait(
-                lambda: self._adb(serial, "getprop", "sys.boot_completed").strip() == "1", config.EMULATOR_BOOT_TIMEOUT):
+        serial = self.serial or f"{info.get('adb_host_ip') or '127.0.0.1'}:{info.get('adb_port') or config.SERIAL.split(':')[1]}"
+        if "connected" not in self.run([self.adb, "connect", serial], 30) or not wait_for(
+                lambda: self._adb(serial, "getprop", "sys.boot_completed").strip() == "1", config.EMULATOR_BOOT_TIMEOUT, self.stop):
             raise EmulatorError("err_mumu_adb", serial=serial)
         if f"package:{package}" not in self._adb(serial, "pm", "list", "packages", package):
             raise EmulatorError("err_game_missing")
@@ -124,7 +131,7 @@ class Emulator:
             return serial, self.adb, False
         log.info("Opening Rogue Legend")
         self.run([self.manager, "control", "-v", "0", "app", "launch", "-pkg", package], 60)
-        if not self._wait(lambda: self._in_front(serial, package), config.GAME_OPEN_TIMEOUT):
+        if not wait_for(lambda: self._in_front(serial, package), config.GAME_OPEN_TIMEOUT, self.stop):
             raise EmulatorError("err_game_open")
         return serial, self.adb, True
 
@@ -134,18 +141,19 @@ class Emulator:
         log.info("Closing MuMu Player")
         info = self._info()
         self.run([self.manager, "control", "-v", "0", "shutdown"], 60)
-        if self._wait(lambda: not self._info().get("is_android_started"), config.EMULATOR_SHUTDOWN_TIMEOUT):
+        if wait_for(lambda: not self._info().get("is_android_started"), config.EMULATOR_SHUTDOWN_TIMEOUT, self.stop):
             return
         pids = [str(info[k]) for k in ("pid", "headless_pid") if info.get(k)]
         log.warning("MuMu Player did not close, killing it (pids %s)", ", ".join(pids) or "unknown")
         for pid in pids:
             self.run(["taskkill", "/F", "/T", "/PID", pid], 30)
-        if not self._wait(lambda: not self._info().get("is_android_started"), config.EMULATOR_SHUTDOWN_TIMEOUT):
+        if not wait_for(lambda: not self._info().get("is_android_started"), config.EMULATOR_SHUTDOWN_TIMEOUT, self.stop):
             log.error("MuMu Player is still running after the kill")
 
     def _info(self) -> dict:
         try:
-            return json.loads(self.run([self.manager, "info", "-v", "0"], 30) or "{}")
+            info = json.loads(self.run([self.manager, "info", "-v", "0"], 30) or "{}")
+            return info if isinstance(info, dict) else {}
         except json.JSONDecodeError:
             return {}
 
@@ -153,17 +161,4 @@ class Emulator:
         return self.run([self.adb, "-s", serial, "shell", *args], 30)
 
     def _in_front(self, serial: str, package: str) -> bool:
-        return package in self._adb(serial, "dumpsys", "window").split("mCurrentFocus", 1)[-1][:300]
-
-    def _wait(self, check: Callable, timeout: float):
-        """Poll check() until it returns something truthy (returned) or timeout (None)."""
-        from roguebot.device import Stopped
-        deadline = time.monotonic() + timeout
-        while True:
-            result = check()
-            if result or time.monotonic() > deadline:
-                return result or None
-            if self.stop is not None and self.stop.wait(config.EMULATOR_POLL):
-                raise Stopped("Stopped by the user")
-            if self.stop is None:
-                time.sleep(config.EMULATOR_POLL)
+        return focused_package(self._adb(serial, "dumpsys", "window")) == package

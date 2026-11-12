@@ -23,13 +23,18 @@ class RunRequest:
     mumu_folder: str = ""  # MuMu Player installation folder (started and Rogue Legend opened on Start)
     loop: bool = False    # keep running: out of energy -> wait for energy -> (routine ->) levels again
     ads: bool = False     # watch ads (energy, x2 rewards, revive, tickets); only for accounts that skip them
+    provider: str = "mumu"
+    adb_path: str = ""
+    device_serial: str = ""
 
 
 def build_request(mode: str, source: str, level: str, full: bool = False, build: Build = Build(),
-                  loop: bool = False, mumu_folder: str = "", ads: bool = False) -> RunRequest:
+                  loop: bool = False, mumu_folder: str = "", ads: bool = False, *, provider: str = "mumu",
+                  adb_path: str = "", device_serial: str = "") -> RunRequest:
     """Validate the form values. Raises ValueError with a user-facing message.
     Levels always run until out of energy; `loop` then waits for energy and starts again."""
-    common = dict(repeat=True, full=full, build=build, mumu_folder=mumu_folder, loop=loop, ads=ads)
+    common = dict(repeat=True, full=full, build=build, mumu_folder=mumu_folder, loop=loop, ads=ads,
+                  provider=provider, adb_path=adb_path.strip(), device_serial=device_serial.strip())
     if source in (LATEST, BEATEN, PENDING):
         return RunRequest(Mode(mode), None, last_beaten=source in (BEATEN, PENDING),
                           pending_stars=source == PENDING, **common)

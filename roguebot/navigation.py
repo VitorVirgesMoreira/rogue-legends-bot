@@ -8,13 +8,14 @@ from pathlib import Path
 import cv2
 
 from roguebot import config, labels
-from roguebot.device import Device
+from roguebot.device import Device, ViewportUnavailable
 from roguebot.mode_screens import back_arrow, parse_fight_result
 from roguebot.screens import (Card, LevelScreen, Lobby, Mode, classify_level_screen, close_button, close_button_any_size,
                               footer_visible, is_loading, is_star_list, lobby_behind, outside_tap_clear,
                               parse_elite_dialog, parse_energy, parse_energy_popup, parse_lobby, parse_star_list, popup_close,
                               resume_prompt, tutorial_hand, update_required)
 from roguebot.vision import Ocr, Text, find, parse_level_number
+from roguebot.setup_guard import check_manual_setup
 
 log = logging.getLogger(__name__)
 
@@ -150,6 +151,12 @@ class Navigator:
         while True:
             try:
                 return self.go_to_lobby()
+            except ViewportUnavailable:
+                # Google can foreground Unity a minute before its black loading frame gains visible
+                # edges. Wait without input; do not turn an ordinary startup into a restart loop.
+                if time.monotonic() > deadline:
+                    raise EmulatorError("err_game_load", seconds=round(timeout))
+                self.device.wait(config.EMULATOR_POLL)
             except NavigationError:
                 if time.monotonic() > deadline:
                     raise EmulatorError("err_game_load", seconds=round(timeout))
@@ -460,7 +467,9 @@ class Navigator:
 
     def _capture(self) -> tuple:
         img = self.device.screenshot()
-        return img, self.ocr.read(img)
+        texts = self.ocr.read(img)
+        check_manual_setup(texts)
+        return img, texts
 
     def _capture_change(self, changed: Callable[[list[Text]], bool]) -> tuple:
         """Capture until changed(texts) (a tap's effect is visible) or CHANGE_TIMEOUT; returns the last

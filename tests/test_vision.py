@@ -40,6 +40,37 @@ def test_ocr_sessions_do_not_spin():
     assert options.get_session_config_entry("session.inter_op.allow_spinning") == "0"
 
 
+def test_texts_and_confidences_share_one_ocr_pass_and_full_frame_coordinates():
+    from types import SimpleNamespace
+    import numpy as np
+    from roguebot.vision import Ocr, Text
+
+    calls = []
+    engine = Ocr.__new__(Ocr)
+
+    def read(image):
+        calls.append(image.shape)
+        return SimpleNamespace(boxes=[np.array([[1, 2], [7, 2], [7, 6], [1, 6]])],
+                               txts=["Fire"], scores=[np.float32(.95)])
+
+    engine._engine = read
+    result = engine.read_result(np.zeros((100, 100, 3), np.uint8), (10, 20, 30, 40))
+    assert result.texts == [Text("Fire", 11, 22, 17, 26)]
+    assert result.scores == pytest.approx((.95,))
+    assert calls == [(20, 20, 3)]
+
+
+def test_empty_ocr_has_no_confidence_or_text():
+    from types import SimpleNamespace
+    import numpy as np
+    from roguebot.vision import Ocr
+
+    engine = Ocr.__new__(Ocr)
+    engine._engine = lambda _: SimpleNamespace(boxes=None)
+    result = engine.read_result(np.zeros((10, 10, 3), np.uint8))
+    assert result.texts == [] and result.scores == ()
+
+
 # The angle classifier (off now) turned these short texts upside down: "Modos" -> "sodo", "x1" -> "LX"
 @pytest.mark.parametrize("name, text", [("lobby_normal.png", "Modos"), ("level_fortune_teller.png", "x1"),
                                         ("arena_opponents_millions.png", "3,3m"), ("guild_map_garbled.png", "Sala de")])

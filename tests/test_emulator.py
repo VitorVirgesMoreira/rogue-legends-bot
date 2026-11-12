@@ -131,6 +131,24 @@ def test_registry_folders_on_this_machine_are_paths():
     assert all(hasattr(p, "parent") for p in emulator._registry_folders())
 
 
+@pytest.mark.parametrize("output", ["[]", "null", '"unavailable"'])
+def test_manager_info_rejects_non_object_json(tmp_path, output):
+    instance = Emulator(install(tmp_path), run=lambda *args: output)
+    assert instance._info() == {}
+
+
+def test_foreground_detection_does_not_match_a_background_package(tmp_path):
+    output = f"mCurrentFocus=Window{{abc u0 some.other.app/.Activity}}\nbackground={PKG}"
+    instance = Emulator(install(tmp_path), run=lambda *args: output)
+    assert not instance._in_front("serial", PKG)
+
+
+def test_foreground_detection_uses_focused_app_when_window_is_null(tmp_path):
+    output = f"mCurrentFocus=null\nmFocusedApp=ActivityRecord{{abc u0 {PKG}/.Activity}}"
+    instance = Emulator(install(tmp_path), run=lambda *args: output)
+    assert instance._in_front("serial", PKG)
+
+
 def test_shutdown_closes_the_player_and_waits(tmp_path):
     mumu = FakeMuMu()
 
