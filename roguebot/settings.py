@@ -1,9 +1,11 @@
-"""UI settings kept between sessions (data/settings.json): only the MuMu Player folder for now."""
+"""UI settings kept between sessions in data/settings.json; old keys remain compatible."""
 
 import json
 import shutil
 import sys
 from pathlib import Path
+
+from roguebot.persistence import write_json
 
 
 def data_dir() -> Path:
@@ -27,11 +29,11 @@ SETTINGS_PATH = DATA_DIR / "settings.json"
 
 def load(path: Path = SETTINGS_PATH) -> dict:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
 def save(values: dict, path: Path = SETTINGS_PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({**load(path), **values}, ensure_ascii=False, indent=1), encoding="utf-8")
+    write_json(path, {**load(path), **values})

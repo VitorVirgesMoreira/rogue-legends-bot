@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from roguebot.settings import DATA_DIR
+from roguebot.persistence import write_json
 from roguebot.vision import normalize
 
 log = logging.getLogger(__name__)
@@ -117,10 +118,13 @@ class Catalog:
             damage_type, nature, role = infer_tags(name, description)
             self.skills[key] = Skill(name, lang, rarity, damage_type, nature, role, description)
             log.info("New skill: %s (%s, %s, %s, %s)", name, rarity, damage_type or "-", nature, role)
-            self.save()
+            try:
+                self.save()
+            except OSError:
+                del self.skills[key]  # a retry must still persist a skill whose write failed
+                raise
         return self.skills[key]
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         data = {k: asdict(v) for k, v in sorted(self.skills.items())}
-        self.path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        write_json(self.path, data)

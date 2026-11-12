@@ -19,16 +19,18 @@ import com.diego.roguebot_phone.bot.Runner
 import com.diego.roguebot_phone.bot.Stopped
 import com.diego.roguebot_phone.bot.Template
 import com.diego.roguebot_phone.bot.Templates
+import com.diego.roguebot_phone.bot.writeAtomically
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /** Runs the bot on a background thread and reports its log and status to the UI (MainActivity). */
 object Engine {
     private val main = Handler(Looper.getMainLooper())
-    private val time = SimpleDateFormat("HH:mm:ss", Locale.ROOT)
-    private val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.ROOT)
+    private val time = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT).withZone(ZoneId.systemDefault())
+    private val stamp = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.ROOT).withZone(ZoneId.systemDefault())
     private const val LOG_LINES = 500
     const val ACTION_STOP = "com.diego.roguebot_phone.STOP"
 
@@ -60,7 +62,7 @@ object Engine {
     }
 
     private fun log(context: Context, level: String, msg: String) {
-        val line = "${time.format(Date())} ${level.padEnd(5)} $msg"
+        val line = "${time.format(Instant.now())} ${level.padEnd(5)} $msg"
         synchronized(lines) {
             lines.addLast(line)
             while (lines.size > LOG_LINES) lines.removeFirst()
@@ -88,13 +90,13 @@ object Engine {
     /** The phone's copy of the skill database, seeded from the desktop bot's data/skills.json. */
     private fun catalog(context: Context): Catalog {
         val file = File(context.filesDir, "skills.json")
-        if (!file.exists()) context.assets.open("skills.json").use { input -> file.outputStream().use { input.copyTo(it) } }
+        if (!file.exists()) context.assets.open("skills.json").bufferedReader(Charsets.UTF_8).use { file.writeAtomically(it.readText()) }
         return Catalog(file)
     }
 
     private fun debugSink(context: Context) = DebugSink { img, name ->
         val dir = File(context.getExternalFilesDir(null), "debug").apply { mkdirs() }
-        val file = File(dir, "${name}_${stamp.format(Date())}.png")
+        val file = File(dir, "${name}_${stamp.format(Instant.now())}.png")
         val bitmap = Bitmap.createBitmap(img.pixels, img.width, img.height, Bitmap.Config.ARGB_8888)
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
@@ -105,13 +107,13 @@ object Engine {
         Engine.loadTemplates(context)
         val dir0 = File(context.getExternalFilesDir(null), "dumps").apply { mkdirs() }
         service.rawScreenshot().let { raw ->  // the phone's own screen, before mapping it to the reference size
-            File(dir0, "raw_${stamp.format(Date())}.png").outputStream().use { raw.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            File(dir0, "raw_${stamp.format(Instant.now())}.png").outputStream().use { raw.compress(Bitmap.CompressFormat.PNG, 100, it) }
             raw.recycle()
         }
         val img = service.screenshot()
         val texts = ocr(context).read(img)
         val dir = File(context.getExternalFilesDir(null), "dumps").apply { mkdirs() }
-        val name = "dump_${stamp.format(Date())}"
+        val name = "dump_${stamp.format(Instant.now())}"
         val bitmap = Bitmap.createBitmap(img.pixels, img.width, img.height, Bitmap.Config.ARGB_8888)
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()

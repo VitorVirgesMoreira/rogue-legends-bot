@@ -96,16 +96,32 @@ class Catalog(private val file: File?) {
 
     /** The known skill with this name (tolerating small OCR differences), or a new one, saved. */
     fun lookup(name: String, description: String, rarity: String, lang: String?): Skill {
-        val key = Skills.skillKey(name)
-        skills[key]?.let { return it }
-        val close = skills.keys.map { it to ratio(key, it) }.filter { it.second >= 0.85 }.maxByOrNull { it.second }
-        if (close != null) return skills.getValue(close.first)
-        val t = Skills.inferTags(name, description)
-        val skill = Skill(name, lang, rarity, t.damageType, t.nature, t.role, description)
-        skills[key] = skill
-        Log.info("New skill: $name ($rarity, ${t.damageType ?: "-"}, ${t.nature}, ${t.role})")
-        save()
-        return skill
+        var key = Skills.skillKey(name)
+        if (key !in skills) {
+            val close = skills.keys.map { it to ratio(key, it) }.filter { it.second >= 0.85 }.maxByOrNull { it.second }
+            if (close != null) {
+                val candidate = skills.getValue(close.first)
+                val observed = Skills.inferTags(name, description).damageType
+                if (!candidate.auto || observed == null || observed == candidate.damageType) key = close.first
+            }
+        }
+        val known = skills[key] ?: run {
+            val tags = Skills.inferTags(name, description)
+            val skill = Skill(name, lang, rarity, tags.damageType, tags.nature, tags.role, description)
+            skills[key] = skill
+            try {
+                save()
+            } catch (e: java.io.IOException) {
+                skills.remove(key)
+                throw e
+            }
+            Log.info("New skill: $name ($rarity, ${tags.damageType ?: "-"}, ${tags.nature}, ${tags.role})")
+            skill
+        }
+        val current = known.copy(rarity = rarity, description = description.ifEmpty { known.description })
+        if (!known.auto || description.isEmpty()) return current
+        val tags = Skills.inferTags(known.name, description)
+        return current.copy(damageType = tags.damageType, nature = tags.nature, role = tags.role)
     }
 
     fun save() {
@@ -119,8 +135,7 @@ class Catalog(private val file: File?) {
                 put("description", s.description); put("auto", s.auto)
             })
         }
-        f.parentFile?.mkdirs()
-        f.writeText(root.toString(1), Charsets.UTF_8)
+        f.writeAtomically(root.toString(1))
     }
 
     companion object {
