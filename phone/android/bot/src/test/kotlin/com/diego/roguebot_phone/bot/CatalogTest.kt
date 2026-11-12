@@ -1,6 +1,7 @@
 package com.diego.roguebot_phone.bot
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
@@ -39,4 +40,8 @@ class CatalogTest {
         assertEquals(listOf(destination), temporary.root.listFiles()!!.toList())
     }
 
+    @Test
+    fun emptyMandatoryOfferHasNoChoice() {
+        assertNull(Choice.choose(emptyList(), Build(), BuildState(), false))
+    }
 }

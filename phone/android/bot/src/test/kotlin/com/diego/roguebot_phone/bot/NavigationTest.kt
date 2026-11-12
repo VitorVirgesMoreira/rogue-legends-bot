@@ -410,6 +410,15 @@ class NavigationTest {
     }
 
     @Test
+    fun labelledOutcomeIsReturnedBeforeContinueLeavesTheResultScreen() {
+        L.setLanguage("en")
+        val actions = play(listOf(s(LevelScreen.DOUBLE_REWARD, P(1150, 2220))),
+            listOf(t("VICTORY!", 500, 700, 940, 850), t("Continue", 600, 2360, 840, 2400),
+                t("x2 Rewards", 1000, 2200, 1300, 2240)))
+        assertEquals(listOf("tap" to P(720, 2380)), actions)
+    }
+
+    @Test
     fun repeatedTapsNeedTimeTooBeforeGivingUp() {
         val actions = play(List(9) { s(LevelScreen.CONTINUE, P(720, 2380)) } + s(LevelScreen.VICTORY, P(720, 2300)))
         assertEquals(10, actions.size)  // 9 quick repeats (< 10 s): not stuck

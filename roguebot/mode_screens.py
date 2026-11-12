@@ -380,6 +380,12 @@ class FightResult:
     next_floor: Text | None = None  # tower victory: "Próximo piso" (the next fight right away, one more ticket)
 
 
+def parse_fight_skip(texts: list[Text]) -> Text | None:
+    """The Skip button beside the battle speed control."""
+    return next((t for t in texts if 760 <= t.center[0] <= 1050 and t.center[1] > 2330
+                 and matches(t, L.FIGHT_SKIP, exact=True)), None)
+
+
 def parse_fight_result(texts: list[Text]) -> FightResult | None:
     """End of an arena / tower / mines / pets / raid fight."""
     button = find(texts, L.OK, exact=True) or find(texts, L.TAP_TO_CONTINUE)

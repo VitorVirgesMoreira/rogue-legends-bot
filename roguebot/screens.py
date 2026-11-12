@@ -13,6 +13,7 @@ import numpy as np
 from roguebot import config, labels as L
 from roguebot.skills import RARITY_NAMES
 from roguebot.vision import Ocr, Text, find, match_template, matches, parse_level_number
+from roguebot.vision import normalize
 
 
 class Mode(Enum):
@@ -287,7 +288,7 @@ _SPEED_RE = re.compile(r"x\s*([12])$")
 
 
 def game_speed(texts: list[Text]) -> int | None:
-    """Speed shown on the bottom-left "» x2" button (it shows the current speed), or None if absent."""
+    """Current x1/x2/x4 on the bottom-left speed button, excluding the dice's separate x4 label."""
     for t in texts:
         m = _SPEED_RE.search(t.norm)
         if m and _in_range(t.center[0], config.SPEED_LABEL_X) and _in_range(t.center[1], config.SPEED_LABEL_Y):
@@ -492,6 +493,11 @@ class SkillCard:
     @property
     def cost(self) -> int | None:
         return int(self.price.norm) if self.price else None
+
+    @property
+    def offer_key(self) -> tuple[str, str]:
+        # OCR varies spaces and hyphens. Levels and "+" still identify different cards.
+        return re.sub(r"[^a-z0-9+]", "", normalize(self.name)), self.rarity
 
 
 def rarity_name(t: Text) -> str | None:

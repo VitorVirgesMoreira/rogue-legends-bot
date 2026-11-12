@@ -39,7 +39,7 @@ object Choice {
     fun choose(skills: List<Skill>, build: Build, state: BuildState, canReroll: Boolean): Int? {
         val wanted = ranked(skills, build, state)
         if (wanted.isNotEmpty()) return wanted[0]
-        if (canReroll) return null
+        if (canReroll || skills.isEmpty()) return null
         return fallback(skills)[0]
     }
 

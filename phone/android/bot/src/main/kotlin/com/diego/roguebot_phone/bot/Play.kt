@@ -63,7 +63,12 @@ class Player(
                 doubles++
                 val proceed = find(texts, L.CONTINUE, exact = true)
                 if ((!ads || doubles > Config.DOUBLE_REWARD_TRIES) && proceed != null) {
-                    s = LevelState(LevelScreen.CONTINUE, proceed.center)
+                    val outcome = when {
+                        find(texts, L.VICTORY) != null -> LevelScreen.VICTORY
+                        find(texts, L.DEFEAT) != null -> LevelScreen.DEFEAT
+                        else -> LevelScreen.CONTINUE
+                    }
+                    s = LevelState(outcome, proceed.center)
                 } else if (!ads) {
                     s = LevelState(LevelScreen.UNKNOWN)  // Continue not read yet: never the ad button
                 }

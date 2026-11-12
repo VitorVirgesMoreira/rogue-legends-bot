@@ -67,3 +67,9 @@ def fixture_image(path: Path) -> np.ndarray:
 @pytest.fixture(scope="session")
 def ocr(request) -> Ocr:
     return CachedOcr(request.config.cache.mkdir("ocr"))
+
+
+@pytest.fixture(autouse=True)
+def isolated_event_captures(monkeypatch, tmp_path):
+    """Keep replay evidence isolated from user data."""
+    monkeypatch.setattr("roguebot.play.EVENT_DEBUG_DIR", tmp_path / "events")
