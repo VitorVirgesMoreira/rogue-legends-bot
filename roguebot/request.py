@@ -38,8 +38,16 @@ class RunRequest:
     provider: str = "mumu"
     adb_path: str = ""     # blank uses the selected provider's bundled ADB
     device_serial: str = ""  # blank uses the provider's default/discovered device
+    elite_energy: int | None = None  # None: highest affordable cost; otherwise exactly 5/10/15
 
+    def __post_init__(self) -> None:
+        if self.elite_energy is not None and (not isinstance(self.elite_energy, int) or isinstance(self.elite_energy, bool)
+                                               or self.elite_energy not in config.ELITE_COSTS):
+            raise ValueError("bad_elite_energy")
 
+    @property
+    def minimum_energy(self) -> int:
+        return self.elite_energy if self.mode is Mode.ELITE and self.elite_energy is not None else config.MIN_RUN_ENERGY
 
 
 def build_request(mode: str, source: str, level: str, full: bool = False, build: Build = Build(),
@@ -50,8 +58,16 @@ def build_request(mode: str, source: str, level: str, full: bool = False, build:
                   routine_parts: tuple[str, ...] | None = None) -> RunRequest:
     """Validate the form values. Raises ValueError with a user-facing message.
     Levels always run until out of energy; `loop` then waits for energy and starts again."""
+    if elite_energy in (None, "auto"):
+        cost = None
+    elif isinstance(elite_energy, int) and not isinstance(elite_energy, bool):
+        cost = elite_energy
+    elif isinstance(elite_energy, str) and elite_energy in {str(c) for c in config.ELITE_COSTS}:
+        cost = int(elite_energy)
+    else:
+        raise ValueError("bad_elite_energy")
     common = dict(repeat=True, full=full, build=build, mumu_folder=mumu_folder, loop=loop, ads=ads,
-                  provider=provider, adb_path=adb_path.strip(), device_serial=device_serial.strip())
+                  provider=provider, adb_path=adb_path.strip(), device_serial=device_serial.strip(), elite_energy=cost)
     if source in (LATEST, BEATEN, PENDING):
         return RunRequest(Mode(mode), None, last_beaten=source in (BEATEN, PENDING),
                           pending_stars=source == PENDING, **common)

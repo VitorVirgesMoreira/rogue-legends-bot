@@ -16,6 +16,9 @@ from roguebot.vision import Ocr, Text, find, match_template, matches, parse_leve
 class Mode(Enum):
     NORMAL = "normal"
     ELITE = "elite"
+    PARTY_EXPEDITION = "party_expedition"
+    CHAOS = "chaos"
+    CONQUEST = "conquest"
 
 
 START_LABEL = {Mode.NORMAL: L.START_NORMAL, Mode.ELITE: L.START_ELITE}
@@ -399,13 +402,19 @@ def classify_level_screen(img: np.ndarray, texts: list[Text]) -> LevelState:
     return LevelState(LevelScreen.UNKNOWN)
 
 
-def card_stars(img: np.ndarray, header: Text) -> int:
-    """Gold star icons (earned) right of a card header; missing ones are grey-blue."""
+def card_stars(img: np.ndarray, header: Text) -> int | None:
+    """Normal gold and elite purple stars are earned; grey-blue stars are missing."""
     y = header.center[1]
     earned = 0
     for x in config.STAR_ICONS_X:
-        b, g, r = img[y - 12:y + 12, x - 12:x + 12].reshape(-1, 3).mean(0)
-        earned += r > 180 and b < 150
+        patch = img[max(0, y - 12):y + 12, x - 12:x + 12]
+        if patch.shape[:2] != (24, 24):
+            return None
+        h, s, v = cv2.cvtColor(patch, cv2.COLOR_BGR2HSV).reshape(-1, 3).mean(0)
+        if s > 100 and v > 150 and (15 <= h <= 40 or 125 <= h <= 170):
+            earned += 1
+        elif not (s < 70 and v > 110):
+            return None  # a covered/dark header is not evidence of zero or three stars
     return earned
 
 

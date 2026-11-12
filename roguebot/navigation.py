@@ -9,13 +9,14 @@ import cv2
 
 from roguebot import config, labels
 from roguebot.device import Device, ViewportUnavailable
+from roguebot.setup_guard import check_manual_setup
 from roguebot.mode_screens import back_arrow, parse_fight_result
+from roguebot.modifiers import parse_modifiers
 from roguebot.screens import (Card, LevelScreen, Lobby, Mode, classify_level_screen, close_button, close_button_any_size,
                               footer_visible, is_loading, is_star_list, lobby_behind, outside_tap_clear,
                               parse_elite_dialog, parse_energy, parse_energy_popup, parse_lobby, parse_star_list, popup_close,
                               resume_prompt, tutorial_hand, update_required)
 from roguebot.vision import Ocr, Text, find, parse_level_number
-from roguebot.setup_guard import check_manual_setup
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,10 @@ class NavigationError(Exception):
     pass
 
 
+class NoEnergyError(NavigationError):
+    """A selected run is not affordable; a normal stop, never an emulator restart."""
+
+
 class LevelUnavailable(NavigationError):
     """The requested level is locked or does not exist: restarting cannot fix it."""
 
@@ -68,12 +73,19 @@ def _still_there(button: Text, texts: list[Text]) -> bool:
 
 
 class Navigator:
-    def __init__(self, device: Device, ocr: Ocr, dry_run: bool = False, ads: bool = False):
+    def __init__(self, device: Device, ocr: Ocr, dry_run: bool = False, ads: bool = False,
+                 elite_energy: int | None = None):
+        if elite_energy is not None and (not isinstance(elite_energy, int) or isinstance(elite_energy, bool)
+                                         or elite_energy not in config.ELITE_COSTS):
+            raise ValueError("bad_elite_energy")
+        self.elite_energy = elite_energy
         self.device = device
         self.ocr = ocr
         self.dry_run = dry_run
         self.ads = ads  # watch ads (energy videos); only with an account that skips them
         self.resume_level: Callable[[], object] | None = None  # plays an interrupted run to its end
+        self.level_modifiers = None
+        self.last_energy_cost = None
 
     # --- public API -------------------------------------------------------------------
 
@@ -98,6 +110,21 @@ class Navigator:
     def start_star_challenge(self, mode: Mode, level: int) -> None:
         """Start an already beaten level from the Desafio de Estrellas list."""
         self._open_star_list(mode)
+        self._start_star_card(mode, level)
+
+    def start_farm(self, mode: Mode, choose: Callable[[int], int]) -> int:
+        """Choose a beaten stage using the lobby of the mode whose list was opened."""
+        lobby = self._open_star_list(mode)
+        latest = parse_level_number(lobby.level_title or "")
+        if latest is None:
+            self._fail(f"Could not read the unlocked {mode.value} chapter", self.device.screenshot())
+        if latest <= 1:
+            self._fail(f"No beaten {mode.value} stage to farm", self.device.screenshot(), StarsUnavailable)
+        level = choose(latest)
+        self._start_star_card(mode, level)
+        return level
+
+    def _start_star_card(self, mode: Mode, level: int) -> None:
         card = self._scroll_to(level)
         log.info("Starting %s star challenge: %s", mode.value, card.header.text)
         self._press_start(card.button, mode)
@@ -107,36 +134,54 @@ class Navigator:
         The list opens near its end: scan upwards, page by page. Returns the level, or None if every
         beaten level has 3 stars (nothing started)."""
         self._open_star_list(mode)
-        prev = None
+        prev, unchanged, unreadable = None, 0, 0
         for _ in range(MAX_SCROLLS):
             img, texts = self._capture()
             cards = parse_star_list(img, texts, self.ocr)
-            pending = [c for c in cards if c.button and c.stars < 3]
+            if not cards or any(c.button and c.stars is None for c in cards):
+                unreadable += 1
+                if unreadable >= FEATURE_READS:
+                    self._fail("Could not read the star counts; refusing to assume all levels are complete", img)
+                time.sleep(config.SCROLL_SETTLE)
+                continue
+            unreadable = 0
+            pending = [c for c in cards if c.button and c.stars is not None and c.stars < 3]
             if pending:
                 card = max(pending, key=lambda c: c.number)  # nearest to the end: fewest scrolls
                 card = self._scroll_to(card.number)  # settled position (scroll inertia)
+                if card.stars is None:
+                    self._fail("Could not confirm the pending level's star count", img)
+                if card.stars == 3:
+                    continue  # a moving frame associated the button with another header
                 log.info("Starting %s star challenge for missing stars: %s (%d/3)", mode.value, card.header.text,
                          card.stars)
                 self._press_start(card.button, mode)
                 return card.number
             numbers = [c.number for c in cards]
-            if not numbers or numbers == prev or numbers[0] == 1:
-                break
-            prev = numbers
+            if numbers[0] == 1:
+                log.info("Every beaten %s level has 3 stars", mode.value)
+                return None
+            positions = tuple((c.number, c.header.center[1] // 40) for c in cards)
+            unchanged = unchanged + 1 if positions == prev else 0
+            if unchanged >= 2:
+                self._fail("Star list did not reach the earlier levels; refusing to replay the last level", img)
+            prev = positions
             self._drag_list(-config.MAX_DRAG)  # towards lower levels
-        log.info("Every beaten %s level has 3 stars", mode.value)
-        return None
+        self._fail("Could not finish checking the earlier levels for missing stars", img)
 
-    def _open_star_list(self, mode: Mode) -> None:
+    def _open_star_list(self, mode: Mode) -> Lobby:
         lobby = self._set_mode(mode)
         if lobby.stars_button is None:
-            lobby = self._lobby_until(lambda lobby: lobby.stars_button is not None)
+            lobby = self._lobby_until(lambda lobby: lobby.mode is mode and lobby.stars_button is not None)
+        if lobby.mode is not mode:
+            self._fail(f"Lost the {mode.value} lobby before opening Star Challenge", self.device.screenshot())
         if lobby.stars_button is None:
             self._fail("Desafio de Estrellas is not unlocked on this account", self.device.screenshot(), StarsUnavailable)
         self._tap_text(lobby.stars_button)
         img, texts = self._capture_change(is_star_list)
         if not is_star_list(texts):
             self._fail("Desafio de Estrellas list did not open", img)
+        return lobby
 
     def level_in_progress(self) -> bool:
         """A level is on screen: the bot was stopped or restarted mid-level while the game kept running
@@ -351,10 +396,18 @@ class Navigator:
             log.info("Switching mode %s -> %s", lobby.mode.value, mode.value)
             self.device.tap(*config.ELITE_TOGGLE)
             deadline = time.monotonic() + config.CHANGE_TIMEOUT
-            while (lobby := self.go_to_lobby()).mode != mode:  # the first frames can still show the old mode
-                if time.monotonic() > deadline:
-                    self._fail(f"Mode toggle did not switch to {mode.value}", self.device.screenshot())
-                time.sleep(config.POLL_INTERVAL)
+            while True:
+                try:
+                    lobby = self.go_to_lobby()
+                except ViewportUnavailable:
+                    if time.monotonic() >= deadline:
+                        raise
+                else:
+                    if lobby.mode is mode:
+                        break
+                    if time.monotonic() >= deadline:
+                        self._fail(f"Mode toggle did not switch to {mode.value}", self.device.screenshot())
+                self.device.wait(config.POLL_INTERVAL)
         return lobby
 
     def _lobby_until(self, ok: Callable[[Lobby], bool]) -> Lobby:
@@ -409,6 +462,8 @@ class Navigator:
                           duration=config.SCROLL_DURATION)
 
     def _press_start(self, button: Text, mode: Mode) -> None:
+        self.level_modifiers = None  # never carry the previous chapter's rules into a new level
+        self.last_energy_cost = 5 if mode is Mode.NORMAL else None
         if mode is Mode.ELITE:
             self._tap_text(button)  # opens the "Modo Élite" dialog; nothing is spent yet
             button = self._set_elite_cost()
@@ -428,7 +483,7 @@ class Navigator:
                 log.info("Level started")
                 return
             if (_still_there(button, texts) and retaps < START_RETAPS
-                    and time.monotonic() - last_tap > START_RETAP_AFTER):
+                    and time.monotonic() - last_tap >= START_RETAP_AFTER):
                 # The tap did not register (screen still settling): the button is still in place, and
                 # a start that registered would have left this screen, so tapping again is safe.
                 log.info("Start tap did not register, tapping again")
@@ -439,7 +494,7 @@ class Navigator:
         self._fail("Level did not start (no in-level screen detected)", img)
 
     def _set_elite_cost(self) -> Text:
-        """Set the elite run cost to the highest of ELITE_COSTS the current energy allows.
+        """Set the exact selected cost, or the highest affordable cost in automatic mode.
 
         The +/- buttons go up to 15 regardless of energy, so the cap is computed here.
         Returns the dialog's INICIO button.
@@ -449,14 +504,16 @@ class Navigator:
         if energy is None:
             self._fail("Could not read the energy counter", img)
         affordable = [c for c in config.ELITE_COSTS if c <= energy]
-        if not affordable:
-            self._fail(f"Not enough energy for an elite run ({energy})", img)
-        target = max(affordable)
+        target = self.elite_energy or (max(affordable) if affordable else config.MIN_RUN_ENERGY)
+        if energy < target:
+            raise NoEnergyError(f"Not enough energy for the selected elite cost: {energy}/{target}")
         for _ in range(2 * len(config.ELITE_COSTS)):
             dialog = parse_elite_dialog(texts)
             if not dialog:
                 self._fail("Elite dialog not recognized", img)
             if dialog.cost == target:
+                self.last_energy_cost = target
+                self.level_modifiers = parse_modifiers(img, texts) or None
                 log.info("Elite cost set to %d (energy %d)", target, energy)
                 return dialog.start_button
             self.device.tap(*(config.ELITE_COST_PLUS if dialog.cost < target else config.ELITE_COST_MINUS))

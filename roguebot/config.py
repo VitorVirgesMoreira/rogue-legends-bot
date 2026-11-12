@@ -55,7 +55,7 @@ ENERGY_WAIT_POLL = 300      # loop mode: seconds between energy checks while wai
 MIN_RUN_ENERGY = 5           # cheapest run (normal, or elite at x5)
 
 # Elite start dialog ("Modo Élite")
-STAR_ICONS_X = (1245, 1312, 1379)  # the 3 star icons right of a star list card header (gold = earned)
+STAR_ICONS_X = (1245, 1312, 1379)  # header stars: gold in normal, purple in elite, grey-blue if missing
 ELITE_COSTS = (5, 10, 15)    # energy per run; the bot uses the highest affordable one
 ELITE_COST_MINUS = (480, 1747)
 ELITE_COST_PLUS = (960, 1747)
